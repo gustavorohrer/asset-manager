@@ -110,6 +110,11 @@ type AssetUpdated struct {
 	LastScan    *time.Time `json:"lastScan"`
 }
 
+type AssetDeleted struct {
+	ID      string `json:"id"`
+	Deleted bool   `json:"deleted"`
+}
+
 type ListAssetVulnerabilitiesQuery struct {
 	Page     int
 	PageSize int

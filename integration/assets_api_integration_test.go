@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ type assetDetailsEnvelope struct {
 }
 
 func TestAssetsAPIIntegration(t *testing.T) {
-	router, cleanup := setupIntegrationRouter(t)
+	router, pool, cleanup := setupIntegrationRouter(t)
 	defer cleanup()
 
 	t.Run("health", func(t *testing.T) {
@@ -284,9 +285,82 @@ func TestAssetsAPIIntegration(t *testing.T) {
 			t.Fatalf("expected ASSET_NOT_FOUND, got %s", payload.Error.Code)
 		}
 	})
+
+	t.Run("delete asset success and second delete not found", func(t *testing.T) {
+		suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+		assetID := "AST-DEL-" + suffix
+		componentID := "CMP-DEL-" + suffix
+		scanID := "SCN-DEL-" + suffix
+		vulnID := "VUL-DEL-" + suffix
+		threatID := "THR-DEL-" + suffix
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO asset (id, name, description, createdat, lastscan)
+VALUES ($1, $2, $3, $4, $5)
+`, assetID, "Delete Integration Asset", "asset for delete integration test", "2024-01-01", "2024-10-08"); err != nil {
+			t.Fatalf("insert asset: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO component (id, name, version, vendor, type, createdat, lastscan, assetid)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, componentID, "Delete Integration Component", "1.0.0", "Integration Vendor", "Firmware", "2024-01-01", "2024-10-08", assetID); err != nil {
+			t.Fatalf("insert component: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO scan (id, performedat, scannername, componentid)
+VALUES ($1, $2, $3, $4)
+`, scanID, "2024-10-08", "integration-scanner", componentID); err != nil {
+			t.Fatalf("insert scan: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO vulnerability (id, description, severity, scanid)
+VALUES ($1, $2, $3, $4)
+`, vulnID, "integration vuln", "CRITICAL", scanID); err != nil {
+			t.Fatalf("insert vulnerability: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO threat (id, description, risklevel, type, scanid)
+VALUES ($1, $2, $3, $4, $5)
+`, threatID, "integration threat", "HIGH", "Integration Threat", scanID); err != nil {
+			t.Fatalf("insert threat: %v", err)
+		}
+
+		status, body := performRequest(t, router, http.MethodDelete, "/assets/"+assetID)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload struct {
+			Data assets.AssetDeleted `json:"data"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Data.ID != assetID || !payload.Data.Deleted {
+			t.Fatalf("unexpected delete response: %+v", payload.Data)
+		}
+
+		assertCountByID(t, pool, "asset", assetID, 0)
+		assertCountByID(t, pool, "component", componentID, 0)
+		assertCountByID(t, pool, "scan", scanID, 0)
+		assertCountByID(t, pool, "vulnerability", vulnID, 0)
+		assertCountByID(t, pool, "threat", threatID, 0)
+
+		statusSecond, bodySecond := performRequest(t, router, http.MethodDelete, "/assets/"+assetID)
+		if statusSecond != http.StatusNotFound {
+			t.Fatalf("expected second delete status 404, got %d, body=%s", statusSecond, string(bodySecond))
+		}
+	})
 }
 
-func setupIntegrationRouter(t *testing.T) (http.Handler, func()) {
+func setupIntegrationRouter(t *testing.T) (http.Handler, *pgxpool.Pool, func()) {
 	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -313,7 +387,7 @@ func setupIntegrationRouter(t *testing.T) (http.Handler, func()) {
 	gin.SetMode(gin.TestMode)
 	router := httpapi.NewRouter(handler)
 
-	return router, pool.Close
+	return router, pool, pool.Close
 }
 
 func performRequest(t *testing.T, router http.Handler, method, target string) (int, []byte) {
@@ -335,4 +409,20 @@ func performJSONRequest(t *testing.T, router http.Handler, method, target string
 	router.ServeHTTP(rec, req)
 
 	return rec.Code, rec.Body.Bytes()
+}
+
+func assertCountByID(t *testing.T, pool *pgxpool.Pool, table string, id string, expected int) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var got int
+	query := "SELECT COUNT(*) FROM " + table + " WHERE id = $1"
+	if err := pool.QueryRow(ctx, query, id).Scan(&got); err != nil {
+		t.Fatalf("count %s by id: %v", table, err)
+	}
+	if got != expected {
+		t.Fatalf("unexpected %s count for id=%s: want=%d got=%d", table, id, expected, got)
+	}
 }

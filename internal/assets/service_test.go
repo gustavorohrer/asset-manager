@@ -26,6 +26,10 @@ type fakeRepository struct {
 	updateErr   error
 	updateID    string
 	updateInput UpdateAssetInput
+
+	deleteData AssetDeleted
+	deleteErr  error
+	deleteID   string
 }
 
 func (f *fakeRepository) ListAssets(_ context.Context, _ ListAssetsQuery) ([]AssetSummary, int, error) {
@@ -48,6 +52,11 @@ func (f *fakeRepository) UpdateAsset(_ context.Context, assetID string, input Up
 	f.updateID = assetID
 	f.updateInput = input
 	return f.updateData, f.updateErr
+}
+
+func (f *fakeRepository) DeleteAsset(_ context.Context, assetID string) (AssetDeleted, error) {
+	f.deleteID = assetID
+	return f.deleteData, f.deleteErr
 }
 
 func TestServiceListAssetsCalculatesTotalPages(t *testing.T) {
@@ -135,5 +144,22 @@ func TestServiceUpdateAssetPassThrough(t *testing.T) {
 	}
 	if got.ID != "AST-001" {
 		t.Fatalf("expected id AST-001, got %s", got.ID)
+	}
+}
+
+func TestServiceDeleteAssetPassThrough(t *testing.T) {
+	service := NewService(&fakeRepository{
+		deleteData: AssetDeleted{
+			ID:      "AST-001",
+			Deleted: true,
+		},
+	})
+
+	got, err := service.DeleteAsset(context.Background(), "AST-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != "AST-001" || !got.Deleted {
+		t.Fatalf("unexpected delete response: %+v", got)
 	}
 }

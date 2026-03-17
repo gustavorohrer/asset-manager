@@ -4,7 +4,7 @@ This project implements a Go API for the Eclypsium backend challenge.
 
 ## TL;DR (Reviewer Path)
 1. Run backend locally with seeded PostgreSQL (commands below).
-2. Run the quick validation checklist (5 curl calls).
+2. Run the quick validation checklist (6 curl calls).
 3. Run tests:
    - `go test ./...`
    - `DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=disable" go test -tags=integration ./integration`
@@ -21,6 +21,7 @@ Current implemented feature set:
 - `GET /assets/:id/vulnerabilities` (latest scan vulnerabilities by asset, with pagination and optional severity filter)
 - `GET /assets/:id/threats` (latest scan threats by asset, with pagination and optional riskLevel filter)
 - `PATCH /assets/:id` (partial update of asset fields: `name`, `description`, `lastScan`)
+- `DELETE /assets/:id` (hard delete asset and related components/scans/vulnerabilities/threats)
 
 ## Tech stack
 - Go 1.25
@@ -389,6 +390,39 @@ curl -X PATCH "http://localhost:8080/assets/AST-001" \
 }
 ```
 
+### Delete asset
+Use this endpoint with care because it performs a hard delete.
+
+```bash
+curl -X DELETE "http://localhost:8080/assets/AST-001"
+```
+
+Success envelope:
+
+```json
+{
+  "data": {
+    "id": "AST-001",
+    "deleted": true
+  }
+}
+```
+
+Not found example:
+
+```bash
+curl -X DELETE "http://localhost:8080/assets/AST-404"
+```
+
+```json
+{
+  "error": {
+    "code": "ASSET_NOT_FOUND",
+    "message": "asset not found"
+  }
+}
+```
+
 ## Tests
 Run:
 
@@ -401,8 +435,8 @@ Current tests include:
 - vulnerabilities query parsing/validation unit tests
 - threats query parsing/validation unit tests
 - update asset request parsing/validation unit tests
-- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`, `UpdateAsset`)
-- HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, `GET /assets/:id/threats`, and `PATCH /assets/:id`
+- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`, `UpdateAsset`, `DeleteAsset`)
+- HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, `GET /assets/:id/threats`, `PATCH /assets/:id`, and `DELETE /assets/:id`
 - integration tests against real PostgreSQL (`go test -tags=integration ./integration`)
 
 Run integration tests:
@@ -419,10 +453,10 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 - Endpoints validated with success and error contracts (`200`, `400`, `404`) using seeded challenge data.
 
 ## Scope and Trade-offs
-- Implemented core challenge endpoints: asset listing, details, vulnerabilities by asset, threats by asset, and partial asset update.
+- Implemented core challenge endpoints: asset listing, details, vulnerabilities by asset, threats by asset, partial asset update, and hard delete.
 - Kept API contract consistent (`{data, pagination}` for lists, structured error envelope).
 - Used pgx + explicit SQL for clarity, control, and reproducibility in interview review.
-- Prioritized atomic commits and test coverage (unit + integration) over full CRUD.
+- Prioritized atomic commits and test coverage (unit + integration) over advanced non-functional features.
 
 ## Notes
 - Unknown query params are ignored.
@@ -444,5 +478,4 @@ docker rm -f ecl-be-challenge-db
 
 ## Backlog
 - Optional challenge endpoints:
-  - remove asset
 - Frontend app + deployed demo URL + short walkthrough video

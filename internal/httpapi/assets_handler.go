@@ -28,6 +28,7 @@ func (h *AssetsHandler) RegisterRoutes(router gin.IRoutes) {
 	router.GET("/assets/:id/vulnerabilities", h.listAssetVulnerabilities)
 	router.GET("/assets/:id/threats", h.listAssetThreats)
 	router.PATCH("/assets/:id", h.updateAsset)
+	router.DELETE("/assets/:id", h.deleteAsset)
 }
 
 func (h *AssetsHandler) listAssets(c *gin.Context) {
@@ -263,6 +264,45 @@ func (h *AssetsHandler) updateAsset(c *gin.Context) {
 	c.JSON(http.StatusOK, assetUpdatedEnvelope{Data: updated})
 }
 
+func (h *AssetsHandler) deleteAsset(c *gin.Context) {
+	assetID := strings.TrimSpace(c.Param("id"))
+	if assetID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_PATH_PARAM",
+				Message: "asset id is required",
+			},
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	deleted, err := h.service.DeleteAsset(ctx, assetID)
+	if err != nil {
+		if errors.Is(err, assets.ErrAssetNotFound) {
+			c.JSON(http.StatusNotFound, errorEnvelope{
+				Error: apiError{
+					Code:    "ASSET_NOT_FOUND",
+					Message: "asset not found",
+				},
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, errorEnvelope{
+			Error: apiError{
+				Code:    "INTERNAL_ERROR",
+				Message: "internal server error",
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, assetDeletedEnvelope{Data: deleted})
+}
+
 type errorEnvelope struct {
 	Error apiError `json:"error"`
 }
@@ -279,4 +319,8 @@ type assetDetailsEnvelope struct {
 
 type assetUpdatedEnvelope struct {
 	Data assets.AssetUpdated `json:"data"`
+}
+
+type assetDeletedEnvelope struct {
+	Data assets.AssetDeleted `json:"data"`
 }

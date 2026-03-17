@@ -518,6 +518,74 @@ RETURNING id, name, description, createdat, lastscan
 	return updated, nil
 }
 
+func (r *AssetRepository) DeleteAsset(ctx context.Context, assetID string) (assets.AssetDeleted, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var lockedID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM asset WHERE id = $1 FOR UPDATE`, assetID).Scan(&lockedID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return assets.AssetDeleted{}, assets.ErrAssetNotFound
+		}
+		return assets.AssetDeleted{}, fmt.Errorf("lock asset: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+DELETE FROM threat t
+USING scan s, component c
+WHERE t.scanid = s.id
+  AND s.componentid = c.id
+  AND c.assetid = $1
+`, assetID); err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("delete asset threats: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+DELETE FROM vulnerability v
+USING scan s, component c
+WHERE v.scanid = s.id
+  AND s.componentid = c.id
+  AND c.assetid = $1
+`, assetID); err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("delete asset vulnerabilities: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+DELETE FROM scan s
+USING component c
+WHERE s.componentid = c.id
+  AND c.assetid = $1
+`, assetID); err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("delete asset scans: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM component WHERE assetid = $1`, assetID); err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("delete asset components: %w", err)
+	}
+
+	var deletedID string
+	if err := tx.QueryRow(ctx, `DELETE FROM asset WHERE id = $1 RETURNING id`, assetID).Scan(&deletedID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return assets.AssetDeleted{}, assets.ErrAssetNotFound
+		}
+		return assets.AssetDeleted{}, fmt.Errorf("delete asset: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return assets.AssetDeleted{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return assets.AssetDeleted{
+		ID:      deletedID,
+		Deleted: true,
+	}, nil
+}
+
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	conditions := make([]string, 0, 5)
 	args := make([]any, 0, 5)

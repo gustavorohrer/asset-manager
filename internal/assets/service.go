@@ -11,6 +11,7 @@ type Repository interface {
 	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) ([]AssetVulnerability, int, error)
 	ListAssetThreats(ctx context.Context, assetID string, query ListAssetThreatsQuery) ([]AssetThreat, int, error)
 	UpdateAsset(ctx context.Context, assetID string, input UpdateAssetInput) (AssetUpdated, error)
+	DeleteAsset(ctx context.Context, assetID string) (AssetDeleted, error)
 }
 
 type Lister interface {
@@ -27,6 +28,7 @@ type ServiceAPI interface {
 	VulnerabilitiesLister
 	ThreatsLister
 	AssetUpdater
+	AssetDeleter
 }
 
 type VulnerabilitiesLister interface {
@@ -39,6 +41,10 @@ type ThreatsLister interface {
 
 type AssetUpdater interface {
 	UpdateAsset(ctx context.Context, assetID string, input UpdateAssetInput) (AssetUpdated, error)
+}
+
+type AssetDeleter interface {
+	DeleteAsset(ctx context.Context, assetID string) (AssetDeleted, error)
 }
 
 type Service struct {
@@ -121,4 +127,8 @@ func (s *Service) ListAssetThreats(ctx context.Context, assetID string, query Li
 
 func (s *Service) UpdateAsset(ctx context.Context, assetID string, input UpdateAssetInput) (AssetUpdated, error) {
 	return s.repo.UpdateAsset(ctx, assetID, input)
+}
+
+func (s *Service) DeleteAsset(ctx context.Context, assetID string) (AssetDeleted, error) {
+	return s.repo.DeleteAsset(ctx, assetID)
 }

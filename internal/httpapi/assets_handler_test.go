@@ -42,6 +42,11 @@ type fakeAssetsLister struct {
 	updateCalled   bool
 	updateID       string
 	updateInput    assets.UpdateAssetInput
+
+	deleteResponse assets.AssetDeleted
+	deleteErr      error
+	deleteCalled   bool
+	deleteID       string
 }
 
 func (f *fakeAssetsLister) ListAssets(_ context.Context, query assets.ListAssetsQuery) (assets.ListAssetsResponse, error) {
@@ -75,6 +80,12 @@ func (f *fakeAssetsLister) UpdateAsset(_ context.Context, assetID string, input 
 	f.updateID = assetID
 	f.updateInput = input
 	return f.updateResponse, f.updateErr
+}
+
+func (f *fakeAssetsLister) DeleteAsset(_ context.Context, assetID string) (assets.AssetDeleted, error) {
+	f.deleteCalled = true
+	f.deleteID = assetID
+	return f.deleteResponse, f.deleteErr
 }
 
 func TestListAssetsSuccess(t *testing.T) {
@@ -481,6 +492,64 @@ func TestUpdateAssetNotFoundReturns404(t *testing.T) {
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
+}
+
+func TestDeleteAssetSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	lister := &fakeAssetsLister{
+		deleteResponse: assets.AssetDeleted{
+			ID:      "AST-001",
+			Deleted: true,
+		},
+	}
+
+	handler := NewAssetsHandler(lister)
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodDelete, "/assets/AST-001", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if !lister.deleteCalled {
+		t.Fatal("expected delete service to be called")
+	}
+}
+
+func TestDeleteAssetInvalidPathReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodDelete, "/assets/%20", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
+func TestDeleteAssetNotFoundReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{deleteErr: assets.ErrAssetNotFound})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodDelete, "/assets/AST-404", nil)
+	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusNotFound {
