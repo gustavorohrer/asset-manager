@@ -3,16 +3,28 @@
 This project implements a Go API for the Eclypsium backend challenge.
 
 ## TL;DR (Reviewer Path)
-1. Run backend locally with seeded PostgreSQL (commands below).
-2. Run the quick validation checklist (6 curl calls).
+1. Try the deployed API first (commands below).
+2. If needed, run backend locally with seeded PostgreSQL.
 3. Run tests:
    - `go test ./...`
    - `DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=disable" go test -tags=integration ./integration`
 
 ## Demo
-- Backend URL: `pending`
+- Backend URL: `https://asset-manager-production-ddd8.up.railway.app`
 - Frontend URL: `pending`
 - Video walkthrough: `pending`
+
+### Hosted Demo Quick Check
+```bash
+BASE_URL="https://asset-manager-production-ddd8.up.railway.app"
+
+curl "$BASE_URL/health"
+curl "$BASE_URL/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
+curl "$BASE_URL/assets/AST-001"
+curl "$BASE_URL/assets/AST-001/vulnerabilities?page=1&pageSize=3&severity=HIGH"
+curl "$BASE_URL/assets/AST-001/threats?page=1&pageSize=3&riskLevel=HIGH"
+curl -i "$BASE_URL/assets?page=0"  # 400 INVALID_QUERY_PARAM
+```
 
 Current implemented feature set:
 - `GET /health`
