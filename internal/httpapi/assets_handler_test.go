@@ -23,6 +23,12 @@ type fakeAssetsLister struct {
 	query         assets.ListAssetsQuery
 	detailsCalled bool
 	detailsID     string
+
+	vulnerabilitiesResponse assets.ListAssetVulnerabilitiesResponse
+	vulnerabilitiesErr      error
+	vulnerabilitiesCalled   bool
+	vulnerabilitiesID       string
+	vulnerabilitiesQuery    assets.ListAssetVulnerabilitiesQuery
 }
 
 func (f *fakeAssetsLister) ListAssets(_ context.Context, query assets.ListAssetsQuery) (assets.ListAssetsResponse, error) {
@@ -35,6 +41,13 @@ func (f *fakeAssetsLister) GetAssetDetails(_ context.Context, assetID string) (a
 	f.detailsCalled = true
 	f.detailsID = assetID
 	return f.detailsResponse, f.detailsErr
+}
+
+func (f *fakeAssetsLister) ListAssetVulnerabilities(_ context.Context, assetID string, query assets.ListAssetVulnerabilitiesQuery) (assets.ListAssetVulnerabilitiesResponse, error) {
+	f.vulnerabilitiesCalled = true
+	f.vulnerabilitiesID = assetID
+	f.vulnerabilitiesQuery = query
+	return f.vulnerabilitiesResponse, f.vulnerabilitiesErr
 }
 
 func TestListAssetsSuccess(t *testing.T) {
@@ -211,5 +224,82 @@ func TestGetAssetDetailsInternalError(t *testing.T) {
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", recorder.Code)
+	}
+}
+
+func TestListAssetVulnerabilitiesSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{
+		vulnerabilitiesResponse: assets.ListAssetVulnerabilitiesResponse{
+			Data: []assets.AssetVulnerability{
+				{
+					ID:            "VUL-001",
+					Description:   "Sample vulnerability",
+					Severity:      assets.SeverityCritical,
+					ScanID:        "SCN-001",
+					ComponentID:   "CMP-001",
+					ComponentName: "Dell UEFI BIOS",
+					PerformedAt:   time.Date(2024, 10, 8, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			Pagination: assets.Pagination{
+				Page:       1,
+				PageSize:   20,
+				Total:      1,
+				TotalPages: 1,
+			},
+		},
+	})
+
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-001/vulnerabilities?page=1&pageSize=20&severity=critical", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var payload assets.ListAssetVulnerabilitiesResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(payload.Data) != 1 {
+		t.Fatalf("expected one vulnerability, got %d", len(payload.Data))
+	}
+}
+
+func TestListAssetVulnerabilitiesInvalidQueryReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-001/vulnerabilities?severity=urgent", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
+func TestListAssetVulnerabilitiesNotFoundReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{vulnerabilitiesErr: assets.ErrAssetNotFound})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-404/vulnerabilities", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
 	}
 }

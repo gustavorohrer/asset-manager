@@ -8,6 +8,7 @@ import (
 type Repository interface {
 	ListAssets(ctx context.Context, query ListAssetsQuery) ([]AssetSummary, int, error)
 	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
+	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) ([]AssetVulnerability, int, error)
 }
 
 type Lister interface {
@@ -21,6 +22,11 @@ type DetailsGetter interface {
 type ServiceAPI interface {
 	Lister
 	DetailsGetter
+	VulnerabilitiesLister
+}
+
+type VulnerabilitiesLister interface {
+	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) (ListAssetVulnerabilitiesResponse, error)
 }
 
 type Service struct {
@@ -55,4 +61,26 @@ func (s *Service) ListAssets(ctx context.Context, query ListAssetsQuery) (ListAs
 
 func (s *Service) GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error) {
 	return s.repo.GetAssetDetails(ctx, assetID)
+}
+
+func (s *Service) ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) (ListAssetVulnerabilitiesResponse, error) {
+	data, total, err := s.repo.ListAssetVulnerabilities(ctx, assetID, query)
+	if err != nil {
+		return ListAssetVulnerabilitiesResponse{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int(math.Ceil(float64(total) / float64(query.PageSize)))
+	}
+
+	return ListAssetVulnerabilitiesResponse{
+		Data: data,
+		Pagination: Pagination{
+			Page:       query.Page,
+			PageSize:   query.PageSize,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
 }

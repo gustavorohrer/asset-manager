@@ -6,6 +6,7 @@ Current implemented feature set:
 - `GET /health`
 - `GET /assets` (simple asset listing with filters, sorting, pagination, and computed threat/vulnerability flags)
 - `GET /assets/:id` (asset details with ordered components and computed threat/vulnerability flags)
+- `GET /assets/:id/vulnerabilities` (latest scan vulnerabilities by asset, with pagination and optional severity filter)
 
 ## Tech stack
 - Go 1.25
@@ -161,10 +162,72 @@ Success envelope:
 }
 ```
 
+### Asset vulnerabilities
+```bash
+curl "http://localhost:8080/assets/AST-001/vulnerabilities"
+```
+
+Supported query params:
+- `page` (default `1`, max `10000`)
+- `pageSize` (default `20`, max `100`)
+- `severity` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, case-insensitive)
+
+Example:
+
+```bash
+curl "http://localhost:8080/assets/AST-001/vulnerabilities?page=1&pageSize=10&severity=critical"
+```
+
+Success envelope:
+
+```json
+{
+  "data": [
+    {
+      "id": "VUL-001",
+      "description": "Dell UEFI BIOS vulnerable to BootHole (CVE-2020-10713) allowing SecureBoot bypass",
+      "severity": "CRITICAL",
+      "scanId": "SCN-001",
+      "componentId": "CMP-001",
+      "componentName": "Dell UEFI BIOS",
+      "performedAt": "2024-10-08T00:00:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Invalid query example:
+
+```bash
+curl "http://localhost:8080/assets/AST-001/vulnerabilities?severity=urgent"
+```
+
+```json
+{
+  "error": {
+    "code": "INVALID_QUERY_PARAM",
+    "message": "one or more query parameters are invalid",
+    "details": [
+      {
+        "field": "severity",
+        "issue": "must be one of LOW, MEDIUM, HIGH, CRITICAL",
+        "value": "urgent"
+      }
+    ]
+  }
+}
+```
+
 Not found example:
 
 ```bash
-curl "http://localhost:8080/assets/AST-404"
+curl "http://localhost:8080/assets/AST-404/vulnerabilities"
 ```
 
 ```json
@@ -185,8 +248,9 @@ go test ./...
 
 Current tests include:
 - query parsing/validation unit tests
-- service tests (`ListAssets`, `GetAssetDetails`)
-- HTTP handler tests for `GET /assets` and `GET /assets/:id`
+- vulnerabilities query parsing/validation unit tests
+- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`)
+- HTTP handler tests for `GET /assets`, `GET /assets/:id`, and `GET /assets/:id/vulnerabilities`
 
 ## Notes
 - Unknown query params are ignored.
@@ -207,7 +271,6 @@ docker rm -f ecl-be-challenge-db
 ```
 
 ## Backlog
-- `GET /assets/:id/vulnerabilities` (latest scan logic per component)
 - `GET /assets/:id/threats` (latest scan logic per component)
 - Optional challenge endpoints:
   - update asset properties

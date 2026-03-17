@@ -232,6 +232,117 @@ GROUP BY fa.id, fa.name, fa.description, fa.createdat, fa.lastscan
 	return details, nil
 }
 
+func (r *AssetRepository) ListAssetVulnerabilities(ctx context.Context, assetID string, query assets.ListAssetVulnerabilitiesQuery) ([]assets.AssetVulnerability, int, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("begin read transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM asset WHERE id = $1)`, assetID).Scan(&exists); err != nil {
+		return nil, 0, fmt.Errorf("check asset existence: %w", err)
+	}
+	if !exists {
+		return nil, 0, assets.ErrAssetNotFound
+	}
+
+	severityFilter := ""
+	args := []any{assetID}
+	if query.Severity != nil {
+		args = append(args, string(*query.Severity))
+		severityFilter = fmt.Sprintf("WHERE v.severity = $%d", len(args))
+	}
+
+	countSQL := `
+WITH latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	WHERE c.assetid = $1
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+)
+SELECT COUNT(*)
+FROM vulnerability v
+JOIN latest_component_scans lcs ON lcs.scanid = v.scanid
+` + severityFilter
+
+	var total int
+	if err := tx.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count asset vulnerabilities: %w", err)
+	}
+
+	dataArgs := append([]any{}, args...)
+	dataArgs = append(dataArgs, query.PageSize)
+	limitPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
+	dataArgs = append(dataArgs, (query.Page-1)*query.PageSize)
+	offsetPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
+
+	dataSQL := `
+WITH latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid)
+		s.componentid,
+		s.id AS scanid,
+		s.performedat
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	WHERE c.assetid = $1
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+)
+SELECT
+	v.id,
+	v.description,
+	v.severity,
+	v.scanid,
+	c.id AS component_id,
+	c.name AS component_name,
+	lcs.performedat
+FROM vulnerability v
+JOIN latest_component_scans lcs ON lcs.scanid = v.scanid
+JOIN component c ON c.id = lcs.componentid
+` + severityFilter + `
+ORDER BY c.name ASC, v.id ASC
+LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
+
+	rows, err := tx.Query(ctx, dataSQL, dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query asset vulnerabilities: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]assets.AssetVulnerability, 0, query.PageSize)
+	for rows.Next() {
+		var item assets.AssetVulnerability
+		if err := rows.Scan(
+			&item.ID,
+			&item.Description,
+			&item.Severity,
+			&item.ScanID,
+			&item.ComponentID,
+			&item.ComponentName,
+			&item.PerformedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scan asset vulnerability row: %w", err)
+		}
+		result = append(result, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate asset vulnerability rows: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, 0, fmt.Errorf("commit read transaction: %w", err)
+	}
+
+	return result, total, nil
+}
+
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	conditions := make([]string, 0, 5)
 	args := make([]any, 0, 5)

@@ -27,6 +27,15 @@ const (
 	SortOrderDesc SortOrder = "desc"
 )
 
+type Severity string
+
+const (
+	SeverityLow      Severity = "LOW"
+	SeverityMedium   Severity = "MEDIUM"
+	SeverityHigh     Severity = "HIGH"
+	SeverityCritical Severity = "CRITICAL"
+)
+
 type ListAssetsQuery struct {
 	NameContains string
 
@@ -83,6 +92,27 @@ type AssetDetails struct {
 	HasVulnerabilities bool             `json:"hasVulnerabilities"`
 	HasThreats         bool             `json:"hasThreats"`
 	Components         []AssetComponent `json:"components"`
+}
+
+type ListAssetVulnerabilitiesQuery struct {
+	Page     int
+	PageSize int
+	Severity *Severity
+}
+
+type AssetVulnerability struct {
+	ID            string    `json:"id"`
+	Description   string    `json:"description"`
+	Severity      Severity  `json:"severity"`
+	ScanID        string    `json:"scanId"`
+	ComponentID   string    `json:"componentId"`
+	ComponentName string    `json:"componentName"`
+	PerformedAt   time.Time `json:"performedAt"`
+}
+
+type ListAssetVulnerabilitiesResponse struct {
+	Data       []AssetVulnerability `json:"data"`
+	Pagination Pagination           `json:"pagination"`
 }
 
 type QueryValidationDetail struct {

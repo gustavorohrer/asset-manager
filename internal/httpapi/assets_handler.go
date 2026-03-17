@@ -24,6 +24,7 @@ func NewAssetsHandler(service assets.ServiceAPI) *AssetsHandler {
 func (h *AssetsHandler) RegisterRoutes(router gin.IRoutes) {
 	router.GET("/assets", h.listAssets)
 	router.GET("/assets/:id", h.getAssetDetails)
+	router.GET("/assets/:id/vulnerabilities", h.listAssetVulnerabilities)
 }
 
 func (h *AssetsHandler) listAssets(c *gin.Context) {
@@ -93,6 +94,57 @@ func (h *AssetsHandler) getAssetDetails(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, assetDetailsEnvelope{Data: response})
+}
+
+func (h *AssetsHandler) listAssetVulnerabilities(c *gin.Context) {
+	assetID := strings.TrimSpace(c.Param("id"))
+	if assetID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_PATH_PARAM",
+				Message: "asset id is required",
+			},
+		})
+		return
+	}
+
+	query, details := assets.ParseListAssetVulnerabilitiesQuery(c.Request.URL.Query())
+	if len(details) > 0 {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_QUERY_PARAM",
+				Message: "one or more query parameters are invalid",
+				Details: details,
+			},
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	response, err := h.service.ListAssetVulnerabilities(ctx, assetID, query)
+	if err != nil {
+		if errors.Is(err, assets.ErrAssetNotFound) {
+			c.JSON(http.StatusNotFound, errorEnvelope{
+				Error: apiError{
+					Code:    "ASSET_NOT_FOUND",
+					Message: "asset not found",
+				},
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, errorEnvelope{
+			Error: apiError{
+				Code:    "INTERNAL_ERROR",
+				Message: "internal server error",
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 type errorEnvelope struct {
