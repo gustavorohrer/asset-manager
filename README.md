@@ -476,6 +476,9 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 docker rm -f ecl-be-challenge-db
 ```
 
-## Backlog
-- Optional challenge endpoints:
-- Frontend app + deployed demo URL + short walkthrough video
+## Backlog (Future Improvements)
+- Auth/authz for write operations (`PATCH`, `DELETE`) and token-based access control.
+- Optimistic concurrency control for `PATCH` (version/ETag + conditional update) to avoid lost updates.
+- Audit trail for mutable operations (who/when/what changed, including deletes).
+- OpenAPI/Swagger documentation and generated client examples.
+- CI pipeline with automated unit/integration checks on pull requests.
