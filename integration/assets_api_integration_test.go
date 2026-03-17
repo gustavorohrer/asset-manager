@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -208,6 +209,81 @@ func TestAssetsAPIIntegration(t *testing.T) {
 			t.Fatalf("expected ASSET_NOT_FOUND, got %s", payload.Error.Code)
 		}
 	})
+
+	t.Run("update asset success", func(t *testing.T) {
+		beforeStatus, beforeBody := performRequest(t, router, http.MethodGet, "/assets/AST-001")
+		if beforeStatus != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", beforeStatus, string(beforeBody))
+		}
+		var before assetDetailsEnvelope
+		if err := json.Unmarshal(beforeBody, &before); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		updatedBody := []byte(`{"name":"AST-001 Integration Updated","description":"integration test update","lastScan":"2024-10-07T00:00:00Z"}`)
+		status, body := performJSONRequest(t, router, http.MethodPatch, "/assets/AST-001", updatedBody)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload struct {
+			Data assets.AssetUpdated `json:"data"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Data.Name != "AST-001 Integration Updated" {
+			t.Fatalf("expected updated name, got %s", payload.Data.Name)
+		}
+
+		restorePayload := map[string]any{
+			"name":        before.Data.Name,
+			"description": before.Data.Description,
+		}
+		if before.Data.LastScan == nil {
+			restorePayload["lastScan"] = nil
+		} else {
+			restorePayload["lastScan"] = before.Data.LastScan.Format(time.RFC3339)
+		}
+		restoreBody, err := json.Marshal(restorePayload)
+		if err != nil {
+			t.Fatalf("marshal restore body: %v", err)
+		}
+		restoreStatus, restoreResponse := performJSONRequest(t, router, http.MethodPatch, "/assets/AST-001", restoreBody)
+		if restoreStatus != http.StatusOK {
+			t.Fatalf("expected restore status 200, got %d, body=%s", restoreStatus, string(restoreResponse))
+		}
+	})
+
+	t.Run("update asset invalid body", func(t *testing.T) {
+		status, body := performJSONRequest(t, router, http.MethodPatch, "/assets/AST-001", []byte(`{"id":"AST-002"}`))
+		if status != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d, body=%s", status, string(body))
+		}
+
+		var payload errorEnvelope
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode error response: %v", err)
+		}
+		if payload.Error.Code != "INVALID_REQUEST_BODY" {
+			t.Fatalf("expected INVALID_REQUEST_BODY, got %s", payload.Error.Code)
+		}
+	})
+
+	t.Run("update asset not found", func(t *testing.T) {
+		status, body := performJSONRequest(t, router, http.MethodPatch, "/assets/AST-404", []byte(`{"name":"updated"}`))
+		if status != http.StatusNotFound {
+			t.Fatalf("expected status 404, got %d, body=%s", status, string(body))
+		}
+
+		var payload errorEnvelope
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode error response: %v", err)
+		}
+		if payload.Error.Code != "ASSET_NOT_FOUND" {
+			t.Fatalf("expected ASSET_NOT_FOUND, got %s", payload.Error.Code)
+		}
+	})
 }
 
 func setupIntegrationRouter(t *testing.T) (http.Handler, func()) {
@@ -244,6 +320,17 @@ func performRequest(t *testing.T, router http.Handler, method, target string) (i
 	t.Helper()
 
 	req := httptest.NewRequest(method, target, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	return rec.Code, rec.Body.Bytes()
+}
+
+func performJSONRequest(t *testing.T, router http.Handler, method, target string, body []byte) (int, []byte) {
+	t.Helper()
+
+	req := httptest.NewRequest(method, target, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 

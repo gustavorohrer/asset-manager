@@ -21,6 +21,11 @@ type fakeRepository struct {
 	threatData  []AssetThreat
 	threatTotal int
 	threatErr   error
+
+	updateData  AssetUpdated
+	updateErr   error
+	updateID    string
+	updateInput UpdateAssetInput
 }
 
 func (f *fakeRepository) ListAssets(_ context.Context, _ ListAssetsQuery) ([]AssetSummary, int, error) {
@@ -37,6 +42,12 @@ func (f *fakeRepository) ListAssetVulnerabilities(_ context.Context, _ string, _
 
 func (f *fakeRepository) ListAssetThreats(_ context.Context, _ string, _ ListAssetThreatsQuery) ([]AssetThreat, int, error) {
 	return f.threatData, f.threatTotal, f.threatErr
+}
+
+func (f *fakeRepository) UpdateAsset(_ context.Context, assetID string, input UpdateAssetInput) (AssetUpdated, error) {
+	f.updateID = assetID
+	f.updateInput = input
+	return f.updateData, f.updateErr
 }
 
 func TestServiceListAssetsCalculatesTotalPages(t *testing.T) {
@@ -109,5 +120,20 @@ func TestServiceListAssetThreatsCalculatesTotalPages(t *testing.T) {
 
 	if response.Pagination.TotalPages != 2 {
 		t.Fatalf("expected totalPages=2, got %d", response.Pagination.TotalPages)
+	}
+}
+
+func TestServiceUpdateAssetPassThrough(t *testing.T) {
+	service := NewService(&fakeRepository{
+		updateData: AssetUpdated{ID: "AST-001"},
+	})
+
+	name := "Updated"
+	got, err := service.UpdateAsset(context.Background(), "AST-001", UpdateAssetInput{Name: &name})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != "AST-001" {
+		t.Fatalf("expected id AST-001, got %s", got.ID)
 	}
 }

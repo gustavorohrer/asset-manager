@@ -456,6 +456,68 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 	return result, total, nil
 }
 
+func (r *AssetRepository) UpdateAsset(ctx context.Context, assetID string, input assets.UpdateAssetInput) (assets.AssetUpdated, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return assets.AssetUpdated{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	setClauses := make([]string, 0, 3)
+	args := make([]any, 0, 4)
+
+	if input.Name != nil {
+		args = append(args, *input.Name)
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+	}
+	if input.Description != nil {
+		args = append(args, *input.Description)
+		setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+	}
+	if input.LastScanSet {
+		if input.LastScan == nil {
+			setClauses = append(setClauses, "lastscan = NULL")
+		} else {
+			args = append(args, dateForSQL(*input.LastScan))
+			setClauses = append(setClauses, fmt.Sprintf("lastscan = $%d::date", len(args)))
+		}
+	}
+
+	if len(setClauses) == 0 {
+		return assets.AssetUpdated{}, fmt.Errorf("no fields to update")
+	}
+
+	args = append(args, assetID)
+	updateSQL := `
+UPDATE asset
+SET ` + strings.Join(setClauses, ", ") + `
+WHERE id = $` + fmt.Sprintf("%d", len(args)) + `
+RETURNING id, name, description, createdat, lastscan
+`
+
+	var updated assets.AssetUpdated
+	if err := tx.QueryRow(ctx, updateSQL, args...).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Description,
+		&updated.CreatedAt,
+		&updated.LastScan,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return assets.AssetUpdated{}, assets.ErrAssetNotFound
+		}
+		return assets.AssetUpdated{}, fmt.Errorf("update asset: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return assets.AssetUpdated{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return updated, nil
+}
+
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	conditions := make([]string, 0, 5)
 	args := make([]any, 0, 5)

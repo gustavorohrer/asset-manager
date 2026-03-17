@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ func (h *AssetsHandler) RegisterRoutes(router gin.IRoutes) {
 	router.GET("/assets/:id", h.getAssetDetails)
 	router.GET("/assets/:id/vulnerabilities", h.listAssetVulnerabilities)
 	router.GET("/assets/:id/threats", h.listAssetThreats)
+	router.PATCH("/assets/:id", h.updateAsset)
 }
 
 func (h *AssetsHandler) listAssets(c *gin.Context) {
@@ -199,6 +201,68 @@ func (h *AssetsHandler) listAssetThreats(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *AssetsHandler) updateAsset(c *gin.Context) {
+	assetID := strings.TrimSpace(c.Param("id"))
+	if assetID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_PATH_PARAM",
+				Message: "asset id is required",
+			},
+		})
+		return
+	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_REQUEST_BODY",
+				Message: "request body could not be read",
+			},
+		})
+		return
+	}
+
+	input, details := assets.ParseUpdateAssetRequestBody(body)
+	if len(details) > 0 {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_REQUEST_BODY",
+				Message: "request body is invalid",
+				Details: details,
+			},
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	updated, err := h.service.UpdateAsset(ctx, assetID, input)
+	if err != nil {
+		if errors.Is(err, assets.ErrAssetNotFound) {
+			c.JSON(http.StatusNotFound, errorEnvelope{
+				Error: apiError{
+					Code:    "ASSET_NOT_FOUND",
+					Message: "asset not found",
+				},
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, errorEnvelope{
+			Error: apiError{
+				Code:    "INTERNAL_ERROR",
+				Message: "internal server error",
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, assetUpdatedEnvelope{Data: updated})
+}
+
 type errorEnvelope struct {
 	Error apiError `json:"error"`
 }
@@ -211,4 +275,8 @@ type apiError struct {
 
 type assetDetailsEnvelope struct {
 	Data assets.AssetDetails `json:"data"`
+}
+
+type assetUpdatedEnvelope struct {
+	Data assets.AssetUpdated `json:"data"`
 }

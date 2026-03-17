@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -35,6 +36,12 @@ type fakeAssetsLister struct {
 	threatsCalled   bool
 	threatsID       string
 	threatsQuery    assets.ListAssetThreatsQuery
+
+	updateResponse assets.AssetUpdated
+	updateErr      error
+	updateCalled   bool
+	updateID       string
+	updateInput    assets.UpdateAssetInput
 }
 
 func (f *fakeAssetsLister) ListAssets(_ context.Context, query assets.ListAssetsQuery) (assets.ListAssetsResponse, error) {
@@ -61,6 +68,13 @@ func (f *fakeAssetsLister) ListAssetThreats(_ context.Context, assetID string, q
 	f.threatsID = assetID
 	f.threatsQuery = query
 	return f.threatsResponse, f.threatsErr
+}
+
+func (f *fakeAssetsLister) UpdateAsset(_ context.Context, assetID string, input assets.UpdateAssetInput) (assets.AssetUpdated, error) {
+	f.updateCalled = true
+	f.updateID = assetID
+	f.updateInput = input
+	return f.updateResponse, f.updateErr
 }
 
 func TestListAssetsSuccess(t *testing.T) {
@@ -388,6 +402,85 @@ func TestListAssetThreatsNotFoundReturns404(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/assets/AST-404/threats", nil)
 	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
+}
+
+func TestUpdateAssetSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	lastScan := time.Date(2024, 10, 7, 0, 0, 0, 0, time.UTC)
+	lister := &fakeAssetsLister{
+		updateResponse: assets.AssetUpdated{
+			ID:          "AST-001",
+			Name:        "Updated asset",
+			Description: "updated description",
+			CreatedAt:   time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			LastScan:    &lastScan,
+		},
+	}
+	handler := NewAssetsHandler(lister)
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	body := `{"name":"  Updated asset  ","description":"updated description","lastScan":"2024-10-07T00:00:00Z"}`
+	request := httptest.NewRequest(http.MethodPatch, "/assets/AST-001", bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if !lister.updateCalled {
+		t.Fatal("expected update service to be called")
+	}
+	if lister.updateInput.Name == nil || *lister.updateInput.Name != "Updated asset" {
+		t.Fatalf("expected trimmed name to be sent, got %#v", lister.updateInput.Name)
+	}
+}
+
+func TestUpdateAssetInvalidBodyReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodPatch, "/assets/AST-001", bytes.NewBufferString(`{"unknown":"value"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+
+	var payload errorEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if payload.Error.Code != "INVALID_REQUEST_BODY" {
+		t.Fatalf("expected INVALID_REQUEST_BODY, got %s", payload.Error.Code)
+	}
+}
+
+func TestUpdateAssetNotFoundReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{updateErr: assets.ErrAssetNotFound})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodPatch, "/assets/AST-404", bytes.NewBufferString(`{"name":"updated"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusNotFound {

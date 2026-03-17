@@ -20,6 +20,7 @@ Current implemented feature set:
 - `GET /assets/:id` (asset details with ordered components and computed threat/vulnerability flags)
 - `GET /assets/:id/vulnerabilities` (latest scan vulnerabilities by asset, with pagination and optional severity filter)
 - `GET /assets/:id/threats` (latest scan threats by asset, with pagination and optional riskLevel filter)
+- `PATCH /assets/:id` (partial update of asset fields: `name`, `description`, `lastScan`)
 
 ## Tech stack
 - Go 1.25
@@ -58,6 +59,7 @@ curl "http://localhost:8080/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=
 curl "http://localhost:8080/assets/AST-001"
 curl "http://localhost:8080/assets/AST-001/vulnerabilities?page=1&pageSize=5&severity=critical"
 curl "http://localhost:8080/assets/AST-001/threats?page=1&pageSize=5&riskLevel=high"
+curl -X PATCH "http://localhost:8080/assets/AST-001" -H "Content-Type: application/json" -d '{"name":"AST-001 Updated","description":"updated from reviewer checklist","lastScan":"2024-10-07T00:00:00Z"}'
 ```
 
 Error contract checks:
@@ -65,6 +67,7 @@ Error contract checks:
 ```bash
 curl "http://localhost:8080/assets?page=0"                        # 400 INVALID_QUERY_PARAM
 curl "http://localhost:8080/assets/AST-404/threats"               # 404 ASSET_NOT_FOUND
+curl -X PATCH "http://localhost:8080/assets/AST-001" -H "Content-Type: application/json" -d '{"id":"AST-002"}'  # 400 INVALID_REQUEST_BODY
 ```
 
 If you prefer separate env vars instead of `DATABASE_URL`:
@@ -331,6 +334,61 @@ curl "http://localhost:8080/assets/AST-001/threats?riskLevel=critical"
 }
 ```
 
+### Update asset (partial)
+```bash
+curl -X PATCH "http://localhost:8080/assets/AST-001" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"AST-001 Updated","description":"updated description","lastScan":"2024-10-07T00:00:00Z"}'
+```
+
+Supported body fields:
+- `name` (string, trimmed, non-empty, max 255)
+- `description` (string, max 10000, empty string allowed)
+- `lastScan` (RFC3339 string or `null` to clear value)
+
+Rules:
+- unknown body fields are rejected with `400 INVALID_REQUEST_BODY`
+- `null` is not allowed for `name` and `description`
+- at least one updatable field must be provided
+
+Success envelope:
+
+```json
+{
+  "data": {
+    "id": "AST-001",
+    "name": "AST-001 Updated",
+    "description": "updated description",
+    "createdAt": "2024-01-15T00:00:00Z",
+    "lastScan": "2024-10-07T00:00:00Z"
+  }
+}
+```
+
+Invalid body example:
+
+```bash
+curl -X PATCH "http://localhost:8080/assets/AST-001" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"AST-002"}'
+```
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST_BODY",
+    "message": "request body is invalid",
+    "details": [
+      {
+        "field": "id",
+        "issue": "is not allowed",
+        "value": "\"AST-002\""
+      }
+    ]
+  }
+}
+```
+
 ## Tests
 Run:
 
@@ -342,8 +400,9 @@ Current tests include:
 - query parsing/validation unit tests
 - vulnerabilities query parsing/validation unit tests
 - threats query parsing/validation unit tests
-- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`)
-- HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, and `GET /assets/:id/threats`
+- update asset request parsing/validation unit tests
+- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`, `UpdateAsset`)
+- HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, `GET /assets/:id/threats`, and `PATCH /assets/:id`
 - integration tests against real PostgreSQL (`go test -tags=integration ./integration`)
 
 Run integration tests:
@@ -360,10 +419,10 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 - Endpoints validated with success and error contracts (`200`, `400`, `404`) using seeded challenge data.
 
 ## Scope and Trade-offs
-- Implemented core challenge endpoints: asset listing, details, vulnerabilities by asset, threats by asset.
+- Implemented core challenge endpoints: asset listing, details, vulnerabilities by asset, threats by asset, and partial asset update.
 - Kept API contract consistent (`{data, pagination}` for lists, structured error envelope).
 - Used pgx + explicit SQL for clarity, control, and reproducibility in interview review.
-- Prioritized atomic commits and test coverage (unit + integration) over optional endpoints.
+- Prioritized atomic commits and test coverage (unit + integration) over full CRUD.
 
 ## Notes
 - Unknown query params are ignored.
@@ -385,6 +444,5 @@ docker rm -f ecl-be-challenge-db
 
 ## Backlog
 - Optional challenge endpoints:
-  - update asset properties
   - remove asset
 - Frontend app + deployed demo URL + short walkthrough video
