@@ -9,6 +9,7 @@ type Repository interface {
 	ListAssets(ctx context.Context, query ListAssetsQuery) ([]AssetSummary, int, error)
 	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
 	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) ([]AssetVulnerability, int, error)
+	ListAssetThreats(ctx context.Context, assetID string, query ListAssetThreatsQuery) ([]AssetThreat, int, error)
 }
 
 type Lister interface {
@@ -23,10 +24,15 @@ type ServiceAPI interface {
 	Lister
 	DetailsGetter
 	VulnerabilitiesLister
+	ThreatsLister
 }
 
 type VulnerabilitiesLister interface {
 	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) (ListAssetVulnerabilitiesResponse, error)
+}
+
+type ThreatsLister interface {
+	ListAssetThreats(ctx context.Context, assetID string, query ListAssetThreatsQuery) (ListAssetThreatsResponse, error)
 }
 
 type Service struct {
@@ -75,6 +81,28 @@ func (s *Service) ListAssetVulnerabilities(ctx context.Context, assetID string, 
 	}
 
 	return ListAssetVulnerabilitiesResponse{
+		Data: data,
+		Pagination: Pagination{
+			Page:       query.Page,
+			PageSize:   query.PageSize,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
+}
+
+func (s *Service) ListAssetThreats(ctx context.Context, assetID string, query ListAssetThreatsQuery) (ListAssetThreatsResponse, error) {
+	data, total, err := s.repo.ListAssetThreats(ctx, assetID, query)
+	if err != nil {
+		return ListAssetThreatsResponse{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int(math.Ceil(float64(total) / float64(query.PageSize)))
+	}
+
+	return ListAssetThreatsResponse{
 		Data: data,
 		Pagination: Pagination{
 			Page:       query.Page,

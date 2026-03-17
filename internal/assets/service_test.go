@@ -17,6 +17,10 @@ type fakeRepository struct {
 	vulnData  []AssetVulnerability
 	vulnTotal int
 	vulnErr   error
+
+	threatData  []AssetThreat
+	threatTotal int
+	threatErr   error
 }
 
 func (f *fakeRepository) ListAssets(_ context.Context, _ ListAssetsQuery) ([]AssetSummary, int, error) {
@@ -29,6 +33,10 @@ func (f *fakeRepository) GetAssetDetails(_ context.Context, _ string) (AssetDeta
 
 func (f *fakeRepository) ListAssetVulnerabilities(_ context.Context, _ string, _ ListAssetVulnerabilitiesQuery) ([]AssetVulnerability, int, error) {
 	return f.vulnData, f.vulnTotal, f.vulnErr
+}
+
+func (f *fakeRepository) ListAssetThreats(_ context.Context, _ string, _ ListAssetThreatsQuery) ([]AssetThreat, int, error) {
+	return f.threatData, f.threatTotal, f.threatErr
 }
 
 func TestServiceListAssetsCalculatesTotalPages(t *testing.T) {
@@ -79,6 +87,22 @@ func TestServiceListAssetVulnerabilitiesCalculatesTotalPages(t *testing.T) {
 	})
 
 	response, err := service.ListAssetVulnerabilities(context.Background(), "AST-001", ListAssetVulnerabilitiesQuery{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if response.Pagination.TotalPages != 2 {
+		t.Fatalf("expected totalPages=2, got %d", response.Pagination.TotalPages)
+	}
+}
+
+func TestServiceListAssetThreatsCalculatesTotalPages(t *testing.T) {
+	service := NewService(&fakeRepository{
+		threatData:  []AssetThreat{{ID: "THR-001"}},
+		threatTotal: 21,
+	})
+
+	response, err := service.ListAssetThreats(context.Background(), "AST-001", ListAssetThreatsQuery{Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

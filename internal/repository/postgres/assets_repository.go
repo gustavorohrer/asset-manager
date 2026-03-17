@@ -343,6 +343,119 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 	return result, total, nil
 }
 
+func (r *AssetRepository) ListAssetThreats(ctx context.Context, assetID string, query assets.ListAssetThreatsQuery) ([]assets.AssetThreat, int, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("begin read transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM asset WHERE id = $1)`, assetID).Scan(&exists); err != nil {
+		return nil, 0, fmt.Errorf("check asset existence: %w", err)
+	}
+	if !exists {
+		return nil, 0, assets.ErrAssetNotFound
+	}
+
+	riskLevelFilter := ""
+	args := []any{assetID}
+	if query.RiskLevel != nil {
+		args = append(args, string(*query.RiskLevel))
+		riskLevelFilter = fmt.Sprintf("WHERE t.risklevel = $%d", len(args))
+	}
+
+	countSQL := `
+WITH latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	WHERE c.assetid = $1
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+)
+SELECT COUNT(*)
+FROM threat t
+JOIN latest_component_scans lcs ON lcs.scanid = t.scanid
+` + riskLevelFilter
+
+	var total int
+	if err := tx.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count asset threats: %w", err)
+	}
+
+	dataArgs := append([]any{}, args...)
+	dataArgs = append(dataArgs, query.PageSize)
+	limitPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
+	dataArgs = append(dataArgs, (query.Page-1)*query.PageSize)
+	offsetPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
+
+	dataSQL := `
+WITH latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid)
+		s.componentid,
+		s.id AS scanid,
+		s.performedat
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	WHERE c.assetid = $1
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+)
+SELECT
+	t.id,
+	t.description,
+	t.risklevel,
+	t.type,
+	t.scanid,
+	c.id AS component_id,
+	c.name AS component_name,
+	lcs.performedat
+FROM threat t
+JOIN latest_component_scans lcs ON lcs.scanid = t.scanid
+JOIN component c ON c.id = lcs.componentid
+` + riskLevelFilter + `
+ORDER BY c.name ASC, t.id ASC
+LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
+
+	rows, err := tx.Query(ctx, dataSQL, dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query asset threats: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]assets.AssetThreat, 0, query.PageSize)
+	for rows.Next() {
+		var item assets.AssetThreat
+		if err := rows.Scan(
+			&item.ID,
+			&item.Description,
+			&item.RiskLevel,
+			&item.Type,
+			&item.ScanID,
+			&item.ComponentID,
+			&item.ComponentName,
+			&item.PerformedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scan asset threat row: %w", err)
+		}
+		result = append(result, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate asset threat rows: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, 0, fmt.Errorf("commit read transaction: %w", err)
+	}
+
+	return result, total, nil
+}
+
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	conditions := make([]string, 0, 5)
 	args := make([]any, 0, 5)

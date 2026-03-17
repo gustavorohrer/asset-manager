@@ -36,6 +36,14 @@ const (
 	SeverityCritical Severity = "CRITICAL"
 )
 
+type RiskLevel string
+
+const (
+	RiskLevelLow    RiskLevel = "LOW"
+	RiskLevelMedium RiskLevel = "MEDIUM"
+	RiskLevelHigh   RiskLevel = "HIGH"
+)
+
 type ListAssetsQuery struct {
 	NameContains string
 
@@ -100,6 +108,12 @@ type ListAssetVulnerabilitiesQuery struct {
 	Severity *Severity
 }
 
+type ListAssetThreatsQuery struct {
+	Page      int
+	PageSize  int
+	RiskLevel *RiskLevel
+}
+
 type AssetVulnerability struct {
 	ID            string    `json:"id"`
 	Description   string    `json:"description"`
@@ -113,6 +127,22 @@ type AssetVulnerability struct {
 type ListAssetVulnerabilitiesResponse struct {
 	Data       []AssetVulnerability `json:"data"`
 	Pagination Pagination           `json:"pagination"`
+}
+
+type AssetThreat struct {
+	ID            string    `json:"id"`
+	Description   string    `json:"description"`
+	RiskLevel     RiskLevel `json:"riskLevel"`
+	Type          string    `json:"type"`
+	ScanID        string    `json:"scanId"`
+	ComponentID   string    `json:"componentId"`
+	ComponentName string    `json:"componentName"`
+	PerformedAt   time.Time `json:"performedAt"`
+}
+
+type ListAssetThreatsResponse struct {
+	Data       []AssetThreat `json:"data"`
+	Pagination Pagination    `json:"pagination"`
 }
 
 type QueryValidationDetail struct {
