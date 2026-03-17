@@ -1,6 +1,9 @@
 package assets
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	defaultPage     = 1
@@ -60,8 +63,32 @@ type ListAssetsResponse struct {
 	Pagination Pagination     `json:"pagination"`
 }
 
+type AssetComponent struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Version   string     `json:"version"`
+	Vendor    string     `json:"vendor"`
+	Type      string     `json:"type"`
+	CreatedAt time.Time  `json:"createdAt"`
+	LastScan  *time.Time `json:"lastScan"`
+	AssetID   string     `json:"assetId"`
+}
+
+type AssetDetails struct {
+	ID                 string           `json:"id"`
+	Name               string           `json:"name"`
+	Description        string           `json:"description"`
+	CreatedAt          time.Time        `json:"createdAt"`
+	LastScan           *time.Time       `json:"lastScan"`
+	HasVulnerabilities bool             `json:"hasVulnerabilities"`
+	HasThreats         bool             `json:"hasThreats"`
+	Components         []AssetComponent `json:"components"`
+}
+
 type QueryValidationDetail struct {
 	Field string `json:"field"`
 	Issue string `json:"issue"`
 	Value string `json:"value"`
 }
+
+var ErrAssetNotFound = errors.New("asset not found")

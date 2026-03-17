@@ -7,10 +7,20 @@ import (
 
 type Repository interface {
 	ListAssets(ctx context.Context, query ListAssetsQuery) ([]AssetSummary, int, error)
+	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
 }
 
 type Lister interface {
 	ListAssets(ctx context.Context, query ListAssetsQuery) (ListAssetsResponse, error)
+}
+
+type DetailsGetter interface {
+	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
+}
+
+type ServiceAPI interface {
+	Lister
+	DetailsGetter
 }
 
 type Service struct {
@@ -41,4 +51,8 @@ func (s *Service) ListAssets(ctx context.Context, query ListAssetsQuery) (ListAs
 			TotalPages: totalPages,
 		},
 	}, nil
+}
+
+func (s *Service) GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error) {
+	return s.repo.GetAssetDetails(ctx, assetID)
 }

@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,15 +14,16 @@ import (
 const requestTimeout = 5 * time.Second
 
 type AssetsHandler struct {
-	lister assets.Lister
+	service assets.ServiceAPI
 }
 
-func NewAssetsHandler(lister assets.Lister) *AssetsHandler {
-	return &AssetsHandler{lister: lister}
+func NewAssetsHandler(service assets.ServiceAPI) *AssetsHandler {
+	return &AssetsHandler{service: service}
 }
 
 func (h *AssetsHandler) RegisterRoutes(router gin.IRoutes) {
 	router.GET("/assets", h.listAssets)
+	router.GET("/assets/:id", h.getAssetDetails)
 }
 
 func (h *AssetsHandler) listAssets(c *gin.Context) {
@@ -39,7 +42,7 @@ func (h *AssetsHandler) listAssets(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
 	defer cancel()
 
-	response, err := h.lister.ListAssets(ctx, query)
+	response, err := h.service.ListAssets(ctx, query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, errorEnvelope{
 			Error: apiError{
@@ -53,6 +56,45 @@ func (h *AssetsHandler) listAssets(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *AssetsHandler) getAssetDetails(c *gin.Context) {
+	assetID := strings.TrimSpace(c.Param("id"))
+	if assetID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope{
+			Error: apiError{
+				Code:    "INVALID_PATH_PARAM",
+				Message: "asset id is required",
+			},
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	response, err := h.service.GetAssetDetails(ctx, assetID)
+	if err != nil {
+		if errors.Is(err, assets.ErrAssetNotFound) {
+			c.JSON(http.StatusNotFound, errorEnvelope{
+				Error: apiError{
+					Code:    "ASSET_NOT_FOUND",
+					Message: "asset not found",
+				},
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, errorEnvelope{
+			Error: apiError{
+				Code:    "INTERNAL_ERROR",
+				Message: "internal server error",
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, assetDetailsEnvelope{Data: response})
+}
+
 type errorEnvelope struct {
 	Error apiError `json:"error"`
 }
@@ -61,4 +103,8 @@ type apiError struct {
 	Code    string                         `json:"code"`
 	Message string                         `json:"message"`
 	Details []assets.QueryValidationDetail `json:"details,omitempty"`
+}
+
+type assetDetailsEnvelope struct {
+	Data assets.AssetDetails `json:"data"`
 }

@@ -16,14 +16,25 @@ type fakeAssetsLister struct {
 	response assets.ListAssetsResponse
 	err      error
 
-	called bool
-	query  assets.ListAssetsQuery
+	detailsResponse assets.AssetDetails
+	detailsErr      error
+
+	called        bool
+	query         assets.ListAssetsQuery
+	detailsCalled bool
+	detailsID     string
 }
 
 func (f *fakeAssetsLister) ListAssets(_ context.Context, query assets.ListAssetsQuery) (assets.ListAssetsResponse, error) {
 	f.called = true
 	f.query = query
 	return f.response, f.err
+}
+
+func (f *fakeAssetsLister) GetAssetDetails(_ context.Context, assetID string) (assets.AssetDetails, error) {
+	f.detailsCalled = true
+	f.detailsID = assetID
+	return f.detailsResponse, f.detailsErr
 }
 
 func TestListAssetsSuccess(t *testing.T) {
@@ -109,5 +120,96 @@ func TestListAssetsInvalidQueryReturns400(t *testing.T) {
 	}
 	if len(payload.Error.Details) == 0 {
 		t.Fatal("expected at least one validation detail")
+	}
+}
+
+func TestGetAssetDetailsSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	lastScan := time.Date(2024, 10, 8, 0, 0, 0, 0, time.UTC)
+	handler := NewAssetsHandler(&fakeAssetsLister{
+		detailsResponse: assets.AssetDetails{
+			ID:                 "AST-001",
+			Name:               "Dell PowerEdge R740 Server",
+			Description:        "Production database server",
+			CreatedAt:          time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			LastScan:           &lastScan,
+			HasVulnerabilities: true,
+			HasThreats:         true,
+			Components: []assets.AssetComponent{
+				{
+					ID:        "CMP-001",
+					Name:      "Dell UEFI BIOS",
+					Version:   "2.10.2",
+					Vendor:    "Dell Inc.",
+					Type:      "UEFI",
+					CreatedAt: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+					LastScan:  &lastScan,
+					AssetID:   "AST-001",
+				},
+			},
+		},
+	})
+
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-001", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var payload assetDetailsEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.Data.ID != "AST-001" {
+		t.Fatalf("expected id AST-001, got %s", payload.Data.ID)
+	}
+	if len(payload.Data.Components) != 1 {
+		t.Fatalf("expected one component, got %d", len(payload.Data.Components))
+	}
+}
+
+func TestGetAssetDetailsNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{detailsErr: assets.ErrAssetNotFound})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-404", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
+
+	var payload errorEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if payload.Error.Code != "ASSET_NOT_FOUND" {
+		t.Fatalf("expected ASSET_NOT_FOUND, got %s", payload.Error.Code)
+	}
+}
+
+func TestGetAssetDetailsInternalError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{detailsErr: context.DeadlineExceeded})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/AST-001", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", recorder.Code)
 	}
 }

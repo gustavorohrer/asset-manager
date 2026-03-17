@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -115,6 +116,120 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 	}
 
 	return result, total, nil
+}
+
+func (r *AssetRepository) GetAssetDetails(ctx context.Context, assetID string) (assets.AssetDetails, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return assets.AssetDetails{}, fmt.Errorf("begin read transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	const detailsSQL = `
+WITH filtered_asset AS (
+	SELECT
+		a.id,
+		a.name,
+		a.description,
+		a.createdat,
+		a.lastscan
+	FROM asset a
+	WHERE a.id = $1
+),
+latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	JOIN filtered_asset fa ON fa.id = c.assetid
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+)
+SELECT
+	fa.id,
+	fa.name,
+	fa.description,
+	fa.createdat,
+	fa.lastscan,
+	COALESCE(BOOL_OR(v.id IS NOT NULL), FALSE) AS has_vulnerabilities,
+	COALESCE(BOOL_OR(t.id IS NOT NULL), FALSE) AS has_threats
+FROM filtered_asset fa
+LEFT JOIN component c ON c.assetid = fa.id
+LEFT JOIN latest_component_scans lcs ON lcs.componentid = c.id
+LEFT JOIN vulnerability v ON v.scanid = lcs.scanid
+LEFT JOIN threat t ON t.scanid = lcs.scanid
+GROUP BY fa.id, fa.name, fa.description, fa.createdat, fa.lastscan
+`
+
+	var details assets.AssetDetails
+	if err := tx.QueryRow(ctx, detailsSQL, assetID).Scan(
+		&details.ID,
+		&details.Name,
+		&details.Description,
+		&details.CreatedAt,
+		&details.LastScan,
+		&details.HasVulnerabilities,
+		&details.HasThreats,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return assets.AssetDetails{}, assets.ErrAssetNotFound
+		}
+		return assets.AssetDetails{}, fmt.Errorf("query asset details: %w", err)
+	}
+
+	const componentsSQL = `
+	SELECT
+		c.id,
+		c.name,
+		c.version,
+		c.vendor,
+		c.type,
+		c.createdat,
+		c.lastscan,
+		c.assetid
+	FROM component c
+	WHERE c.assetid = $1
+	ORDER BY c.name, c.id
+	`
+
+	rows, err := tx.Query(ctx, componentsSQL, assetID)
+	if err != nil {
+		return assets.AssetDetails{}, fmt.Errorf("query asset components: %w", err)
+	}
+	defer rows.Close()
+
+	components := make([]assets.AssetComponent, 0)
+	for rows.Next() {
+		var component assets.AssetComponent
+		if err := rows.Scan(
+			&component.ID,
+			&component.Name,
+			&component.Version,
+			&component.Vendor,
+			&component.Type,
+			&component.CreatedAt,
+			&component.LastScan,
+			&component.AssetID,
+		); err != nil {
+			return assets.AssetDetails{}, fmt.Errorf("scan asset component row: %w", err)
+		}
+		components = append(components, component)
+	}
+
+	if err := rows.Err(); err != nil {
+		return assets.AssetDetails{}, fmt.Errorf("iterate asset component rows: %w", err)
+	}
+
+	details.Components = components
+
+	if err := tx.Commit(ctx); err != nil {
+		return assets.AssetDetails{}, fmt.Errorf("commit read transaction: %w", err)
+	}
+
+	return details, nil
 }
 
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
