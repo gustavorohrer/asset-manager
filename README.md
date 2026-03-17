@@ -316,6 +316,15 @@ Current tests include:
 - threats query parsing/validation unit tests
 - service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`)
 - HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, and `GET /assets/:id/threats`
+- integration tests against real PostgreSQL (`go test -tags=integration ./integration`)
+
+Run integration tests:
+
+```bash
+DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=disable" go test -tags=integration ./integration
+```
+
+If `DATABASE_URL` is not set, integration tests are skipped.
 
 ## Notes
 - Unknown query params are ignored.
@@ -339,4 +348,3 @@ docker rm -f ecl-be-challenge-db
 - Optional challenge endpoints:
   - update asset properties
   - remove asset
-- Integration tests against real PostgreSQL
