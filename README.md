@@ -2,6 +2,18 @@
 
 This project implements a Go API for the Eclypsium backend challenge.
 
+## TL;DR (Reviewer Path)
+1. Run backend locally with seeded PostgreSQL (commands below).
+2. Run the quick validation checklist (5 curl calls).
+3. Run tests:
+   - `go test ./...`
+   - `DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=disable" go test -tags=integration ./integration`
+
+## Demo
+- Backend URL: `pending`
+- Frontend URL: `pending`
+- Video walkthrough: `pending`
+
 Current implemented feature set:
 - `GET /health`
 - `GET /assets` (simple asset listing with filters, sorting, pagination, and computed threat/vulnerability flags)
@@ -37,6 +49,22 @@ In another terminal:
 ```bash
 curl http://localhost:8080/health
 curl "http://localhost:8080/assets?page=1&pageSize=5&sortBy=createdAt&sortOrder=desc"
+```
+
+## Reviewer Quick Validation Checklist
+```bash
+curl http://localhost:8080/health
+curl "http://localhost:8080/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
+curl "http://localhost:8080/assets/AST-001"
+curl "http://localhost:8080/assets/AST-001/vulnerabilities?page=1&pageSize=5&severity=critical"
+curl "http://localhost:8080/assets/AST-001/threats?page=1&pageSize=5&riskLevel=high"
+```
+
+Error contract checks:
+
+```bash
+curl "http://localhost:8080/assets?page=0"                        # 400 INVALID_QUERY_PARAM
+curl "http://localhost:8080/assets/AST-404/threats"               # 404 ASSET_NOT_FOUND
 ```
 
 If you prefer separate env vars instead of `DATABASE_URL`:
@@ -326,6 +354,17 @@ DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=d
 
 If `DATABASE_URL` is not set, integration tests are skipped.
 
+## Evidence
+- Unit and handler tests passing with `go test ./...`.
+- Integration tests passing against real PostgreSQL with `-tags=integration`.
+- Endpoints validated with success and error contracts (`200`, `400`, `404`) using seeded challenge data.
+
+## Scope and Trade-offs
+- Implemented core challenge endpoints: asset listing, details, vulnerabilities by asset, threats by asset.
+- Kept API contract consistent (`{data, pagination}` for lists, structured error envelope).
+- Used pgx + explicit SQL for clarity, control, and reproducibility in interview review.
+- Prioritized atomic commits and test coverage (unit + integration) over optional endpoints.
+
 ## Notes
 - Unknown query params are ignored.
 - Date filters are applied against database `DATE` columns using the date portion of the RFC3339 value.
@@ -348,3 +387,4 @@ docker rm -f ecl-be-challenge-db
 - Optional challenge endpoints:
   - update asset properties
   - remove asset
+- Frontend app + deployed demo URL + short walkthrough video
