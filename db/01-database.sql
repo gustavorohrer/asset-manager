@@ -76,5 +76,6 @@ CREATE TABLE threat (
 -- Add index for performance optimization
 CREATE INDEX idx_component_asset ON component(assetid);
 CREATE INDEX idx_scan_component ON scan(componentid);
+CREATE INDEX idx_scan_component_performedat_id ON scan(componentid, performedat DESC, id DESC);
 CREATE INDEX idx_vulnerability_scan ON vulnerability(scanid);
 CREATE INDEX idx_threat_scan ON threat(scanid);
