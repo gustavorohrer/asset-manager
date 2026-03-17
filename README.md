@@ -26,6 +26,14 @@ curl "$BASE_URL/assets/AST-001/threats?page=1&pageSize=3&riskLevel=HIGH"
 curl -i "$BASE_URL/assets?page=0"  # 400 INVALID_QUERY_PARAM
 ```
 
+### Postman Collection
+- File in repo: `docs/postman/eclypsium-be-challenge.postman_collection.json`
+- Direct link: `https://github.com/gustavorohrer/asset-manager/blob/main/docs/postman/eclypsium-be-challenge.postman_collection.json`
+- Import steps:
+  - Open Postman -> `Import` -> select the JSON file above.
+  - Run the collection with default variables (`baseUrl`, `assetId`, `missingAssetId`).
+  - Included requests are non-destructive (read-only + negative contract checks).
+
 Current implemented feature set:
 - `GET /health`
 - `GET /assets` (simple asset listing with filters, sorting, pagination, and computed threat/vulnerability flags)
