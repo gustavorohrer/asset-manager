@@ -41,6 +41,14 @@ Current implemented feature set:
 - PostgreSQL 17
 - pgx v5 (SQL access)
 
+## CI (GitHub Actions)
+- Workflow file: `.github/workflows/ci.yml`
+- Trigger: `push` to `main` and all `pull_request`s
+- Checks:
+  - Unit tests + build (`go test ./...`, `go build ./...`)
+  - Integration tests with PostgreSQL 17 + seeded data (`db/01-database.sql`, `db/02-sample-data.sql`)
+- Actions page: `https://github.com/gustavorohrer/asset-manager/actions`
+
 ## Reviewer quick start (copy/paste)
 
 This path avoids conflicts with a local PostgreSQL by using host port `5433`.
