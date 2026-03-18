@@ -13,7 +13,8 @@ INSERT INTO asset (id, name, description, createdat, lastscan) VALUES
 ('AST-009', 'Cisco ASR 1001-X Router', 'Backup WAN router for redundancy', '2024-02-05', '2024-10-07'),
 ('AST-010', 'HPE ProLiant DL380 Gen10', 'Web application server in DMZ', '2024-01-18', '2024-10-08'),
 ('AST-011', 'MacBook Pro 16-inch M1', 'Creative team laptop for graphic design', '2024-04-01', '2024-10-06'),
-('AST-012', 'Fortinet FortiGate 600E', 'Next-generation firewall at network perimeter', '2024-01-22', '2024-10-08');
+('AST-012', 'Fortinet FortiGate 600E', 'Next-generation firewall at network perimeter', '2024-01-22', '2024-10-08')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Components (Firmware and Hardware Components)
 INSERT INTO component (id, name, version, vendor, type, createdat, lastscan, assetid) VALUES
@@ -77,7 +78,8 @@ INSERT INTO component (id, name, version, vendor, type, createdat, lastscan, ass
 
 -- Fortinet Firewall Components
 ('CMP-037', 'FortiOS Firmware', '6.4.7', 'Fortinet', 'Operating System', '2024-01-22', '2024-10-08', 'AST-012'),
-('CMP-038', 'FortiASIC NP6 Firmware', '6.4.0', 'Fortinet', 'ASIC Processor', '2024-01-22', '2024-10-08', 'AST-012');
+('CMP-038', 'FortiASIC NP6 Firmware', '6.4.0', 'Fortinet', 'ASIC Processor', '2024-01-22', '2024-10-08', 'AST-012')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Scans
 INSERT INTO scan (id, performedat, scannername, componentid) VALUES
@@ -118,7 +120,8 @@ INSERT INTO scan (id, performedat, scannername, componentid) VALUES
 ('SCN-035', '2024-10-06', 'iBridge Analyzer', 'CMP-035'),
 ('SCN-036', '2024-10-06', 'SSD Health Monitor', 'CMP-036'),
 ('SCN-037', '2024-10-08', 'FortiGuard Scanner', 'CMP-037'),
-('SCN-038', '2024-10-08', 'FortiASIC Validator', 'CMP-038');
+('SCN-038', '2024-10-08', 'FortiASIC Validator', 'CMP-038')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Vulnerabilities
 INSERT INTO vulnerability (id, description, severity, scanid) VALUES
@@ -161,7 +164,8 @@ INSERT INTO vulnerability (id, description, severity, scanid) VALUES
 ('VUL-037', 'FortiOS firmware vulnerable to SSL VPN pre-authentication RCE (CVE-2022-42475)', 'CRITICAL', 'SCN-037'),
 ('VUL-038', 'FortiASIC firmware contains buffer overflow in packet processing', 'HIGH', 'SCN-038'),
 ('VUL-039', 'Dell iDRAC allows unauthorized firmware updates without authentication', 'CRITICAL', 'SCN-004'),
-('VUL-040', 'Supermicro BMC contains default credentials not disabled in production', 'HIGH', 'SCN-019');
+('VUL-040', 'Supermicro BMC contains default credentials not disabled in production', 'HIGH', 'SCN-019')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Threats
 INSERT INTO threat (id, description, risklevel, type, scanid) VALUES
@@ -204,4 +208,5 @@ INSERT INTO threat (id, description, risklevel, type, scanid) VALUES
 ('THR-037', 'SSL VPN exploitation for unauthorized network access', 'HIGH', 'Network Intrusion', 'SCN-037'),
 ('THR-038', 'Hardware accelerator compromise affecting all encrypted traffic', 'HIGH', 'Encryption Compromise', 'SCN-038'),
 ('THR-039', 'Supply chain firmware injection during manufacturing process', 'HIGH', 'Supply Chain Attack', 'SCN-001'),
-('THR-040', 'Default credential exploitation for BMC remote control', 'MEDIUM', 'Weak Authentication', 'SCN-019');
+('THR-040', 'Default credential exploitation for BMC remote control', 'MEDIUM', 'Weak Authentication', 'SCN-019')
+ON CONFLICT (id) DO NOTHING;
