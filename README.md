@@ -2,19 +2,27 @@
 
 This project implements a Go API for the Eclypsium backend challenge.
 
-## TL;DR (Reviewer Path)
-1. Try the deployed API first (commands below).
-2. If needed, run backend locally with seeded PostgreSQL.
-3. Run tests:
-   - `go test ./...`
-   - `DATABASE_URL="postgres://applicant:goodluck@localhost:5433/eclypsiumdb?sslmode=disable" go test -tags=integration ./integration`
+## Reviewer Fast Path (Hosted)
+1. Review the API contract in OpenAPI (`docs/openapi/openapi.yaml`).
+2. Run the hosted quick check (`curl`) against Railway.
+3. Optionally import the Postman collection for fast endpoint walkthrough.
+4. Check CI runs in GitHub Actions.
 
 ## Demo
 - Backend URL: `https://asset-manager-production-ddd8.up.railway.app`
 - Frontend URL: `pending`
 - Video walkthrough: `pending`
 
-### Hosted Demo Quick Check
+### API Contract (OpenAPI)
+- File in repo: `docs/openapi/openapi.yaml`
+- Direct link: `https://github.com/gustavorohrer/asset-manager/blob/main/docs/openapi/openapi.yaml`
+- Suggested viewer:
+  - Open `https://editor.swagger.io/`
+  - Paste the YAML file content
+  - Explore paths/schemas/examples interactively
+  - For local testing, replace server URL with `http://localhost:8080`
+
+### Hosted Quick Check (cURL)
 ```bash
 BASE_URL="https://asset-manager-production-ddd8.up.railway.app"
 
@@ -33,6 +41,9 @@ curl -i "$BASE_URL/assets?page=0"  # 400 INVALID_QUERY_PARAM
   - Open Postman -> `Import` -> select the JSON file above.
   - Run the collection with default variables (`baseUrl`, `assetId`, `missingAssetId`).
   - Included requests are non-destructive (read-only + negative contract checks).
+
+### CI Status
+- Actions page: `https://github.com/gustavorohrer/asset-manager/actions`
 
 Current implemented feature set:
 - `GET /health`
