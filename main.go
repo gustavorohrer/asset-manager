@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -121,14 +123,18 @@ func resolveDatabaseURL() (string, error) {
 		)
 	}
 
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		dbUser,
-		dbPassword,
-		dbHost,
-		dbPort,
-		dbName,
-	), nil
+	databaseURL := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(dbUser, dbPassword),
+		Host:   net.JoinHostPort(dbHost, dbPort),
+		Path:   "/" + dbName,
+	}
+
+	query := databaseURL.Query()
+	query.Set("sslmode", "disable")
+	databaseURL.RawQuery = query.Encode()
+
+	return databaseURL.String(), nil
 }
 
 func serverAddress() string {

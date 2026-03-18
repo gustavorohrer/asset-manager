@@ -38,6 +38,25 @@ func TestResolveDatabaseURLFromDBVars(t *testing.T) {
 	}
 }
 
+func TestResolveDatabaseURLFromDBVarsEscapesCredentials(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("DB_HOST", "localhost")
+	t.Setenv("DB_PORT", "5432")
+	t.Setenv("DB_NAME", "eclypsiumdb")
+	t.Setenv("DB_USER", "app:lic@ant")
+	t.Setenv("DB_PASSWORD", "g?od/luck#1")
+
+	got, err := resolveDatabaseURL()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "postgres://app%3Alic%40ant:g%3Fod%2Fluck%231@localhost:5432/eclypsiumdb?sslmode=disable"
+	if got != want {
+		t.Fatalf("unexpected database URL. want=%s got=%s", want, got)
+	}
+}
+
 func TestResolveDatabaseURLMissingConfig(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("DB_HOST", "")
