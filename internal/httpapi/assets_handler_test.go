@@ -481,6 +481,33 @@ func TestUpdateAssetInvalidBodyReturns400(t *testing.T) {
 	}
 }
 
+func TestUpdateAssetBodyTooLargeReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	oversizedDescription := string(bytes.Repeat([]byte("a"), maxUpdateAssetRequestBodyBytes+1))
+	request := httptest.NewRequest(http.MethodPatch, "/assets/AST-001", bytes.NewBufferString(`{"description":"`+oversizedDescription+`"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+
+	var payload errorEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if payload.Error.Code != "INVALID_REQUEST_BODY" {
+		t.Fatalf("expected INVALID_REQUEST_BODY, got %s", payload.Error.Code)
+	}
+}
+
 func TestUpdateAssetNotFoundReturns404(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

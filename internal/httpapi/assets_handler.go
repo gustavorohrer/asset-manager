@@ -13,6 +13,7 @@ import (
 )
 
 const requestTimeout = 5 * time.Second
+const maxUpdateAssetRequestBodyBytes = 64 * 1024
 
 type AssetsHandler struct {
 	service assets.ServiceAPI
@@ -214,8 +215,19 @@ func (h *AssetsHandler) updateAsset(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUpdateAssetRequestBodyBytes)
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			c.JSON(http.StatusBadRequest, errorEnvelope{
+				Error: apiError{
+					Code:    "INVALID_REQUEST_BODY",
+					Message: "request body exceeds maximum allowed size",
+				},
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, errorEnvelope{
 			Error: apiError{
 				Code:    "INVALID_REQUEST_BODY",
