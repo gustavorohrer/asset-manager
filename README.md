@@ -10,8 +10,7 @@ This project implements a Go API for the Eclypsium backend challenge.
 
 ## Demo
 - Backend URL: `https://asset-manager-production-ddd8.up.railway.app`
-- Frontend URL: `pending`
-- Video walkthrough: `pending`
+- Frontend: not included (out of scope for this backend challenge)
 
 ### API Contract (OpenAPI)
 - File in repo: `docs/openapi/openapi.yaml`
@@ -530,5 +529,4 @@ docker rm -f ecl-be-challenge-db
 - Auth/authz for write operations (`PATCH`, `DELETE`) and token-based access control.
 - Optimistic concurrency control for `PATCH` (version/ETag + conditional update) to avoid lost updates.
 - Audit trail for mutable operations (who/when/what changed, including deletes).
-- OpenAPI/Swagger documentation and generated client examples.
 - Security scanning in CI (`gosec`/SAST) and dependency vulnerability monitoring.
