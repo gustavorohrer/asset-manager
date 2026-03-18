@@ -36,8 +36,6 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
               example:
                 status: up
-        "400":
-          $ref: "#/components/responses/InvalidPathParamResponse"
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
 
