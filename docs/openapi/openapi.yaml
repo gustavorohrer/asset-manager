@@ -655,7 +655,8 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Trimmed server-side; null is not allowed.
+          pattern: '.*\S.*'
+          description: Trimmed server-side; must contain at least one non-whitespace character; null is not allowed.
         description:
           type: string
           maxLength: 10000
