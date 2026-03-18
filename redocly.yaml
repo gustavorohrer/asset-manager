@@ -1,0 +1,6 @@
+extends:
+  - recommended
+
+rules:
+  # Health endpoint intentionally exposes only 200/500.
+  operation-4xx-response: off
