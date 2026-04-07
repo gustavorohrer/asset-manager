@@ -117,6 +117,17 @@ If you prefer separate env vars instead of `DATABASE_URL`:
 - `DB_PASSWORD=goodluck`
 - `PORT=8080` (optional, default is `8080`)
 
+CORS configuration:
+- `APP_ENV=development` or `APP_ENV=production`
+- `CORS_ALLOWED_ORIGINS` (CSV allowlist, explicit origins only)
+  - Example local + deployed frontend:
+    - `CORS_ALLOWED_ORIGINS="https://asset-manager-ui-pi.vercel.app/,http://localhost:3000,http://127.0.0.1:3000"`
+
+Production rules:
+- `CORS_ALLOWED_ORIGINS` is mandatory when `APP_ENV=production`.
+- Wildcard `*` is rejected when `APP_ENV=production`.
+- Credentials are disabled by default (`Access-Control-Allow-Credentials` is not enabled).
+
 You can also set `DATABASE_URL` directly (it takes precedence).
 If `DATABASE_URL` is not provided, all `DB_*` variables above are required.
 

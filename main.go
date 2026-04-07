@@ -30,8 +30,12 @@ func main() {
 	assetsRepository := postgres.NewAssetRepository(dbPool)
 	assetsService := assets.NewService(assetsRepository)
 	assetsHandler := httpapi.NewAssetsHandler(assetsService)
+	corsMiddleware, err := httpapi.NewCORSMiddlewareFromEnv(os.Getenv)
+	if err != nil {
+		log.Fatalf("invalid CORS configuration: %v", err)
+	}
 
-	router := httpapi.NewRouter(assetsHandler)
+	router := httpapi.NewRouter(assetsHandler, corsMiddleware)
 	server := &http.Server{
 		Addr:              serverAddress(),
 		Handler:           router,
