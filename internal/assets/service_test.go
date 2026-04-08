@@ -11,6 +11,9 @@ type fakeRepository struct {
 	listTotal int
 	listErr   error
 
+	summaryData AssetRiskSummary
+	summaryErr  error
+
 	detailsData AssetDetails
 	detailsErr  error
 
@@ -34,6 +37,10 @@ type fakeRepository struct {
 
 func (f *fakeRepository) ListAssets(_ context.Context, _ ListAssetsQuery) ([]AssetSummary, int, error) {
 	return f.listData, f.listTotal, f.listErr
+}
+
+func (f *fakeRepository) GetAssetSummary(_ context.Context) (AssetRiskSummary, error) {
+	return f.summaryData, f.summaryErr
 }
 
 func (f *fakeRepository) GetAssetDetails(_ context.Context, _ string) (AssetDetails, error) {
@@ -86,6 +93,24 @@ func TestServiceGetAssetDetailsPassThrough(t *testing.T) {
 	}
 	if details.ID != "AST-001" {
 		t.Fatalf("expected id AST-001, got %s", details.ID)
+	}
+}
+
+func TestServiceGetAssetSummaryPassThrough(t *testing.T) {
+	service := NewService(&fakeRepository{
+		summaryData: AssetRiskSummary{
+			Total:               41,
+			WithVulnerabilities: 30,
+			WithThreats:         28,
+		},
+	})
+
+	summary, err := service.GetAssetSummary(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if summary.Total != 41 || summary.WithVulnerabilities != 30 || summary.WithThreats != 28 {
+		t.Fatalf("unexpected summary response: %+v", summary)
 	}
 }
 

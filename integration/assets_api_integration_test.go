@@ -43,6 +43,23 @@ func TestAssetsAPIIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("assets summary success", func(t *testing.T) {
+		expected := queryExpectedAssetSummary(t, pool)
+
+		status, body := performRequest(t, router, http.MethodGet, "/assets/summary")
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.AssetRiskSummary
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload != expected {
+			t.Fatalf("unexpected summary payload: got=%+v expected=%+v", payload, expected)
+		}
+	})
+
 	t.Run("list assets success", func(t *testing.T) {
 		status, body := performRequest(t, router, http.MethodGet, "/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc")
 		if status != http.StatusOK {
@@ -513,4 +530,48 @@ func assertCountByID(t *testing.T, pool *pgxpool.Pool, table string, id string, 
 	if got != expected {
 		t.Fatalf("unexpected %s count for id=%s: want=%d got=%d", table, id, expected, got)
 	}
+}
+
+func queryExpectedAssetSummary(t *testing.T, pool *pgxpool.Pool) assets.AssetRiskSummary {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	const expectedSQL = `
+WITH latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+),
+asset_flags AS (
+	SELECT
+		a.id,
+		COALESCE(BOOL_OR(v.id IS NOT NULL), FALSE) AS has_vulnerabilities,
+		COALESCE(BOOL_OR(t.id IS NOT NULL), FALSE) AS has_threats
+	FROM asset a
+	LEFT JOIN component c ON c.assetid = a.id
+	LEFT JOIN latest_component_scans lcs ON lcs.componentid = c.id
+	LEFT JOIN vulnerability v ON v.scanid = lcs.scanid
+	LEFT JOIN threat t ON t.scanid = lcs.scanid
+	GROUP BY a.id
+)
+SELECT
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE has_vulnerabilities) AS with_vulnerabilities,
+	COUNT(*) FILTER (WHERE has_threats) AS with_threats
+FROM asset_flags
+`
+
+	var summary assets.AssetRiskSummary
+	if err := pool.QueryRow(ctx, expectedSQL).Scan(
+		&summary.Total,
+		&summary.WithVulnerabilities,
+		&summary.WithThreats,
+	); err != nil {
+		t.Fatalf("query expected asset summary: %v", err)
+	}
+
+	return summary
 }

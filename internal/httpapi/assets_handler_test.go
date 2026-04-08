@@ -17,6 +17,10 @@ type fakeAssetsLister struct {
 	response assets.ListAssetsResponse
 	err      error
 
+	summaryResponse assets.AssetRiskSummary
+	summaryErr      error
+	summaryCalled   bool
+
 	detailsResponse assets.AssetDetails
 	detailsErr      error
 
@@ -53,6 +57,11 @@ func (f *fakeAssetsLister) ListAssets(_ context.Context, query assets.ListAssets
 	f.called = true
 	f.query = query
 	return f.response, f.err
+}
+
+func (f *fakeAssetsLister) GetAssetSummary(_ context.Context) (assets.AssetRiskSummary, error) {
+	f.summaryCalled = true
+	return f.summaryResponse, f.summaryErr
 }
 
 func (f *fakeAssetsLister) GetAssetDetails(_ context.Context, assetID string) (assets.AssetDetails, error) {
@@ -177,6 +186,56 @@ func TestListAssetsInvalidQueryReturns400(t *testing.T) {
 	}
 	if len(payload.Error.Details) == 0 {
 		t.Fatal("expected at least one validation detail")
+	}
+}
+
+func TestGetAssetSummarySuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	lister := &fakeAssetsLister{
+		summaryResponse: assets.AssetRiskSummary{
+			Total:               41,
+			WithVulnerabilities: 30,
+			WithThreats:         28,
+		},
+	}
+	handler := NewAssetsHandler(lister)
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/summary", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if !lister.summaryCalled {
+		t.Fatal("expected summary service to be called")
+	}
+
+	var payload assets.AssetRiskSummary
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.Total != 41 || payload.WithVulnerabilities != 30 || payload.WithThreats != 28 {
+		t.Fatalf("unexpected summary payload: %+v", payload)
+	}
+}
+
+func TestGetAssetSummaryInternalError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewAssetsHandler(&fakeAssetsLister{summaryErr: context.DeadlineExceeded})
+	router := gin.New()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/summary", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", recorder.Code)
 	}
 }
 

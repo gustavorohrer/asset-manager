@@ -118,6 +118,42 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 	return result, total, nil
 }
 
+func (r *AssetRepository) GetAssetSummary(ctx context.Context) (assets.AssetRiskSummary, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return assets.AssetRiskSummary{}, fmt.Errorf("begin read transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	summarySQL := `
+SELECT
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE ` + assetHasLatestVulnerabilitiesCondition("a") + `) AS with_vulnerabilities,
+	COUNT(*) FILTER (WHERE ` + assetHasLatestThreatsCondition("a") + `) AS with_threats
+FROM asset a
+`
+
+	var summary assets.AssetRiskSummary
+	if err := tx.QueryRow(ctx, summarySQL).Scan(
+		&summary.Total,
+		&summary.WithVulnerabilities,
+		&summary.WithThreats,
+	); err != nil {
+		return assets.AssetRiskSummary{}, fmt.Errorf("query asset summary: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return assets.AssetRiskSummary{}, fmt.Errorf("commit read transaction: %w", err)
+	}
+
+	return summary, nil
+}
+
 func (r *AssetRepository) GetAssetDetails(ctx context.Context, assetID string) (assets.AssetDetails, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.RepeatableRead,

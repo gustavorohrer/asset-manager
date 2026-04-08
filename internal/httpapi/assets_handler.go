@@ -25,6 +25,7 @@ func NewAssetsHandler(service assets.ServiceAPI) *AssetsHandler {
 
 func (h *AssetsHandler) RegisterRoutes(router gin.IRoutes) {
 	router.GET("/assets", h.listAssets)
+	router.GET("/assets/summary", h.getAssetSummary)
 	router.GET("/assets/:id", h.getAssetDetails)
 	router.GET("/assets/:id/vulnerabilities", h.listAssetVulnerabilities)
 	router.GET("/assets/:id/threats", h.listAssetThreats)
@@ -49,6 +50,24 @@ func (h *AssetsHandler) listAssets(c *gin.Context) {
 	defer cancel()
 
 	response, err := h.service.ListAssets(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope{
+			Error: apiError{
+				Code:    "INTERNAL_ERROR",
+				Message: "internal server error",
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *AssetsHandler) getAssetSummary(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	response, err := h.service.GetAssetSummary(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, errorEnvelope{
 			Error: apiError{

@@ -40,6 +40,42 @@
       ]
     },
     {
+      "name": "Assets - Summary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/assets/summary",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "assets",
+            "summary"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"summary includes total counters\", function () {",
+              "  var body = pm.response.json();",
+              "  pm.expect(body).to.have.property(\"total\");",
+              "  pm.expect(body).to.have.property(\"withVulnerabilities\");",
+              "  pm.expect(body).to.have.property(\"withThreats\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
       "name": "Assets - List",
       "request": {
         "method": "GET",

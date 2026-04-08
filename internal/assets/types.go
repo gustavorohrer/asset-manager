@@ -83,6 +83,12 @@ type ListAssetsResponse struct {
 	Pagination Pagination     `json:"pagination"`
 }
 
+type AssetRiskSummary struct {
+	Total               int `json:"total"`
+	WithVulnerabilities int `json:"withVulnerabilities"`
+	WithThreats         int `json:"withThreats"`
+}
+
 type AssetComponent struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`

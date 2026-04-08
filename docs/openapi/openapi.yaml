@@ -20,7 +20,7 @@ tags:
   - name: Health
     description: Service health endpoint.
   - name: Assets
-    description: Asset listing, details, vulnerabilities, threats, update, and delete operations.
+    description: Asset summary, listing, details, vulnerabilities, threats, update, and delete operations.
 paths:
   /health:
     get:
@@ -82,6 +82,26 @@ paths:
                       totalPages: 1
         "400":
           $ref: "#/components/responses/InvalidQueryParamResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+
+  /assets/summary:
+    get:
+      tags: [Assets]
+      summary: Get asset risk summary
+      description: Returns the global inventory counters for total assets and assets with findings detected in their latest component scans.
+      operationId: getAssetSummary
+      responses:
+        "200":
+          description: Asset summary counters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRiskSummary"
+              example:
+                total: 41
+                withVulnerabilities: 30
+                withThreats: 28
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
 
@@ -475,6 +495,17 @@ components:
         status:
           type: string
           enum: [up]
+
+    AssetRiskSummary:
+      type: object
+      required: [total, withVulnerabilities, withThreats]
+      properties:
+        total:
+          type: integer
+        withVulnerabilities:
+          type: integer
+        withThreats:
+          type: integer
 
     Pagination:
       type: object

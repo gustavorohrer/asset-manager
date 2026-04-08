@@ -7,6 +7,7 @@ import (
 
 type Repository interface {
 	ListAssets(ctx context.Context, query ListAssetsQuery) ([]AssetSummary, int, error)
+	GetAssetSummary(ctx context.Context) (AssetRiskSummary, error)
 	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
 	ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) ([]AssetVulnerability, int, error)
 	ListAssetThreats(ctx context.Context, assetID string, query ListAssetThreatsQuery) ([]AssetThreat, int, error)
@@ -22,8 +23,13 @@ type DetailsGetter interface {
 	GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error)
 }
 
+type SummaryGetter interface {
+	GetAssetSummary(ctx context.Context) (AssetRiskSummary, error)
+}
+
 type ServiceAPI interface {
 	Lister
+	SummaryGetter
 	DetailsGetter
 	VulnerabilitiesLister
 	ThreatsLister
@@ -79,6 +85,10 @@ func (s *Service) ListAssets(ctx context.Context, query ListAssetsQuery) (ListAs
 
 func (s *Service) GetAssetDetails(ctx context.Context, assetID string) (AssetDetails, error) {
 	return s.repo.GetAssetDetails(ctx, assetID)
+}
+
+func (s *Service) GetAssetSummary(ctx context.Context) (AssetRiskSummary, error) {
+	return s.repo.GetAssetSummary(ctx)
 }
 
 func (s *Service) ListAssetVulnerabilities(ctx context.Context, assetID string, query ListAssetVulnerabilitiesQuery) (ListAssetVulnerabilitiesResponse, error) {

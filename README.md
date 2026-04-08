@@ -26,6 +26,7 @@ This project implements a Go API for the Eclypsium backend challenge.
 BASE_URL="https://asset-manager-production-ddd8.up.railway.app"
 
 curl "$BASE_URL/health"
+curl "$BASE_URL/assets/summary"
 curl "$BASE_URL/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
 curl "$BASE_URL/assets?has_vulnerabilities=true&has_threats=true"
 curl "$BASE_URL/assets/AST-001"
@@ -47,6 +48,7 @@ curl -i "$BASE_URL/assets?page=0"  # 400 INVALID_QUERY_PARAM
 
 Current implemented feature set:
 - `GET /health`
+- `GET /assets/summary` (global counters for total assets and assets with vulnerabilities/threats in latest component scans)
 - `GET /assets` (simple asset listing with filters, sorting, pagination, and computed threat/vulnerability flags)
 - `GET /assets/:id` (asset details with ordered components and computed threat/vulnerability flags)
 - `GET /assets/:id/vulnerabilities` (latest scan vulnerabilities by asset, with pagination and optional severity filter)
@@ -95,6 +97,7 @@ curl "http://localhost:8080/assets?page=1&pageSize=5&sortBy=createdAt&sortOrder=
 ## Reviewer Quick Validation Checklist
 ```bash
 curl http://localhost:8080/health
+curl "http://localhost:8080/assets/summary"
 curl "http://localhost:8080/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
 curl "http://localhost:8080/assets?has_vulnerabilities=true&has_threats=true"
 curl "http://localhost:8080/assets/AST-001"
@@ -138,6 +141,21 @@ If `DATABASE_URL` is not provided, all `DB_*` variables above are required.
 ### Health check
 ```bash
 curl http://localhost:8080/health
+```
+
+### Asset summary
+```bash
+curl "http://localhost:8080/assets/summary"
+```
+
+Returns:
+
+```json
+{
+  "total": 41,
+  "withVulnerabilities": 30,
+  "withThreats": 28
+}
 ```
 
 ### Asset listing
@@ -503,8 +521,8 @@ Current tests include:
 - vulnerabilities query parsing/validation unit tests
 - threats query parsing/validation unit tests
 - update asset request parsing/validation unit tests
-- service tests (`ListAssets`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`, `UpdateAsset`, `DeleteAsset`)
-- HTTP handler tests for `GET /assets`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, `GET /assets/:id/threats`, `PATCH /assets/:id`, and `DELETE /assets/:id`
+- service tests (`ListAssets`, `GetAssetSummary`, `GetAssetDetails`, `ListAssetVulnerabilities`, `ListAssetThreats`, `UpdateAsset`, `DeleteAsset`)
+- HTTP handler tests for `GET /assets`, `GET /assets/summary`, `GET /assets/:id`, `GET /assets/:id/vulnerabilities`, `GET /assets/:id/threats`, `PATCH /assets/:id`, and `DELETE /assets/:id`
 - integration tests against real PostgreSQL (`go test -tags=integration ./integration`)
 
 Run integration tests:
