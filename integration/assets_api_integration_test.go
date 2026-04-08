@@ -105,7 +105,27 @@ func TestAssetsAPIIntegration(t *testing.T) {
 	})
 
 	t.Run("list assets filters no findings keep pagination totals", func(t *testing.T) {
-		status, body := performRequest(t, router, http.MethodGet, "/assets?page=1&pageSize=100&has_vulnerabilities=false&has_threats=false")
+		suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+		assetID := "AST-NOFIND-" + suffix
+		assetName := "NoFindings-" + suffix
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO asset (id, name, description, createdat, lastscan)
+VALUES ($1, $2, $3, $4, $5)
+`, assetID, assetName, "integration test asset without findings", "2024-01-01", nil); err != nil {
+			t.Fatalf("insert no-findings asset: %v", err)
+		}
+
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cleanupCancel()
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM asset WHERE id = $1`, assetID)
+		})
+
+		status, body := performRequest(t, router, http.MethodGet, "/assets?page=1&pageSize=100&name="+assetName+"&has_vulnerabilities=false&has_threats=false")
 		if status != http.StatusOK {
 			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
 		}
@@ -114,19 +134,21 @@ func TestAssetsAPIIntegration(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("decode response: %v", err)
 		}
-		if payload.Pagination.Total <= 0 {
-			t.Fatalf("expected filtered total > 0, got %d", payload.Pagination.Total)
+		if payload.Pagination.Total != 1 {
+			t.Fatalf("expected filtered total 1, got %d", payload.Pagination.Total)
 		}
-		if payload.Pagination.Total != len(payload.Data) {
-			t.Fatalf("expected total to match data length for pageSize=100, total=%d data=%d", payload.Pagination.Total, len(payload.Data))
+		if len(payload.Data) != 1 {
+			t.Fatalf("expected exactly one filtered asset, got %d", len(payload.Data))
 		}
 		if payload.Pagination.TotalPages != 1 {
 			t.Fatalf("expected totalPages=1 for pageSize=100, got %d", payload.Pagination.TotalPages)
 		}
-		for _, item := range payload.Data {
-			if item.HasVulnerabilities || item.HasThreats {
-				t.Fatalf("expected only assets with no findings, got asset id=%s hasVulnerabilities=%t hasThreats=%t", item.ID, item.HasVulnerabilities, item.HasThreats)
-			}
+		item := payload.Data[0]
+		if item.ID != assetID {
+			t.Fatalf("expected filtered asset id=%s, got %s", assetID, item.ID)
+		}
+		if item.HasVulnerabilities || item.HasThreats {
+			t.Fatalf("expected asset without findings, got hasVulnerabilities=%t hasThreats=%t", item.HasVulnerabilities, item.HasThreats)
 		}
 	})
 
