@@ -623,8 +623,8 @@ WHERE s.componentid = c.id
 }
 
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
-	conditions := make([]string, 0, 7)
-	args := make([]any, 0, 7)
+	conditions := make([]string, 0, 8)
+	args := make([]any, 0, 8)
 
 	add := func(condition string, value any) {
 		args = append(args, value)
@@ -653,12 +653,19 @@ func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	if query.HasThreats != nil {
 		add(assetHasLatestThreatsCondition("a")+" = %s", *query.HasThreats)
 	}
+	if query.HasFindings != nil {
+		add(assetHasLatestFindingsCondition("a")+" = %s", *query.HasFindings)
+	}
 
 	if len(conditions) == 0 {
 		return "", args
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND "), args
+}
+
+func assetHasLatestFindingsCondition(assetAlias string) string {
+	return "(" + assetHasLatestVulnerabilitiesCondition(assetAlias) + " OR " + assetHasLatestThreatsCondition(assetAlias) + ")"
 }
 
 func assetHasLatestVulnerabilitiesCondition(assetAlias string) string {

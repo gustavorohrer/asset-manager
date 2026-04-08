@@ -54,6 +54,7 @@ type ListAssetsQuery struct {
 
 	HasVulnerabilities *bool
 	HasThreats         *bool
+	HasFindings        *bool
 
 	Page      int
 	PageSize  int

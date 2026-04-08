@@ -53,6 +53,7 @@ paths:
         - $ref: "#/components/parameters/lastScanTo"
         - $ref: "#/components/parameters/hasVulnerabilities"
         - $ref: "#/components/parameters/hasThreats"
+        - $ref: "#/components/parameters/hasFindings"
         - $ref: "#/components/parameters/page"
         - $ref: "#/components/parameters/pageSize"
         - $ref: "#/components/parameters/sortBy"
@@ -361,6 +362,14 @@ components:
       schema:
         type: boolean
       example: false
+    hasFindings:
+      name: has_findings
+      in: query
+      required: false
+      description: If true, returns only assets that have vulnerabilities or threats in their latest component scans.
+      schema:
+        type: boolean
+      example: true
     page:
       name: page
       in: query

@@ -88,10 +88,13 @@ func ParseListAssetsQuery(values url.Values) (ListAssetsQuery, []QueryValidation
 
 	hasVulnerabilities, hasVulnerabilitiesErr := parseBool(values, "has_vulnerabilities")
 	hasThreats, hasThreatsErr := parseBool(values, "has_threats")
+	hasFindings, hasFindingsErr := parseBool(values, "has_findings")
 	details = append(details, hasVulnerabilitiesErr...)
 	details = append(details, hasThreatsErr...)
+	details = append(details, hasFindingsErr...)
 	query.HasVulnerabilities = hasVulnerabilities
 	query.HasThreats = hasThreats
+	query.HasFindings = hasFindings
 
 	createdFrom, createdFromErr := parseRFC3339(values, "created_from")
 	createdTo, createdToErr := parseRFC3339(values, "created_to")

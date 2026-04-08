@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
@@ -118,6 +119,81 @@ func TestAssetsAPIIntegration(t *testing.T) {
 			if !item.HasThreats {
 				t.Fatalf("expected only assets with hasThreats=true, got asset id=%s", item.ID)
 			}
+		}
+	})
+
+	t.Run("list assets has_findings true includes asset with only threats", func(t *testing.T) {
+		suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+		assetID := "AST-ONLY-THR-" + suffix
+		assetName := "OnlyThreat-" + suffix
+		componentID := "CMP-ONLY-THR-" + suffix
+		scanID := "SCN-ONLY-THR-" + suffix
+		threatID := "THR-ONLY-THR-" + suffix
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO asset (id, name, description, createdat, lastscan)
+VALUES ($1, $2, $3, $4, $5)
+`, assetID, assetName, "integration test asset with threats only", "2024-07-01", "2024-11-01"); err != nil {
+			t.Fatalf("insert asset: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO component (id, name, version, vendor, type, createdat, lastscan, assetid)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, componentID, "Threat-Only Component", "1.0.0", "Integration Vendor", "Firmware", "2024-07-01", "2024-11-01", assetID); err != nil {
+			t.Fatalf("insert component: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO scan (id, performedat, scannername, componentid)
+VALUES ($1, $2, $3, $4)
+`, scanID, "2024-11-01", "integration-threat-scanner", componentID); err != nil {
+			t.Fatalf("insert scan: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO threat (id, description, risklevel, type, scanid)
+VALUES ($1, $2, $3, $4, $5)
+`, threatID, "integration only-threat finding", "HIGH", "Integration Threat", scanID); err != nil {
+			t.Fatalf("insert threat: %v", err)
+		}
+
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cleanupCancel()
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM threat WHERE id = $1`, threatID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM scan WHERE id = $1`, scanID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM component WHERE id = $1`, componentID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM asset WHERE id = $1`, assetID)
+		})
+
+		requestPath := "/assets?page=1&pageSize=20&sortBy=name&sortOrder=asc&name=" + url.QueryEscape(assetName) + "&created_from=2024-01-01T00:00:00Z&created_to=2024-12-31T23:59:59Z&has_findings=true"
+		status, body := performRequest(t, router, http.MethodGet, requestPath)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.ListAssetsResponse
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Pagination.Total != 1 || payload.Pagination.TotalPages != 1 {
+			t.Fatalf("unexpected pagination for has_findings filter: %+v", payload.Pagination)
+		}
+		if len(payload.Data) != 1 {
+			t.Fatalf("expected one asset, got %d", len(payload.Data))
+		}
+		if payload.Data[0].ID != assetID {
+			t.Fatalf("expected asset id=%s, got %s", assetID, payload.Data[0].ID)
+		}
+		if payload.Data[0].HasVulnerabilities {
+			t.Fatalf("expected hasVulnerabilities=false, got true for asset %s", payload.Data[0].ID)
+		}
+		if !payload.Data[0].HasThreats {
+			t.Fatalf("expected hasThreats=true for asset %s", payload.Data[0].ID)
 		}
 	})
 

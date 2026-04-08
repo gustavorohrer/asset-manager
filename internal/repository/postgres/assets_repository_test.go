@@ -99,3 +99,31 @@ func TestBuildFiltersHasFindingsFlags(t *testing.T) {
 		t.Fatalf("expected second arg false, got %v", args[1])
 	}
 }
+
+func TestBuildFiltersHasFindingsCombinedFlag(t *testing.T) {
+	hasFindings := true
+
+	whereClause, args := buildFilters(assets.ListAssetsQuery{
+		HasFindings: &hasFindings,
+	})
+
+	if !strings.Contains(whereClause, "JOIN vulnerability v ON v.scanid = latest_component_scans.scanid") {
+		t.Fatalf("expected vulnerabilities in combined findings condition, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, "JOIN threat t ON t.scanid = latest_component_scans.scanid") {
+		t.Fatalf("expected threats in combined findings condition, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, "OR") {
+		t.Fatalf("expected OR in combined findings condition, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, ") = $1") {
+		t.Fatalf("expected has_findings placeholder, got: %s", whereClause)
+	}
+
+	if len(args) != 1 {
+		t.Fatalf("expected 1 arg, got %d", len(args))
+	}
+	if args[0] != true {
+		t.Fatalf("expected arg true, got %v", args[0])
+	}
+}

@@ -116,6 +116,12 @@
               "value": "true",
               "description": "Optional: filter assets with threats detected in latest component scans.",
               "disabled": true
+            },
+            {
+              "key": "has_findings",
+              "value": "true",
+              "description": "Optional: if true, returns assets with vulnerabilities or threats in latest component scans.",
+              "disabled": true
             }
           ]
         }

@@ -127,7 +127,7 @@ func TestListAssetsSuccess(t *testing.T) {
 	router := gin.New()
 	handler.RegisterRoutes(router)
 
-	request := httptest.NewRequest(http.MethodGet, "/assets?page=1&pageSize=20&sortBy=name&sortOrder=asc&has_vulnerabilities=true&has_threats=false", nil)
+	request := httptest.NewRequest(http.MethodGet, "/assets?page=1&pageSize=20&sortBy=name&sortOrder=asc&has_vulnerabilities=true&has_threats=false&has_findings=true", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -146,6 +146,9 @@ func TestListAssetsSuccess(t *testing.T) {
 	}
 	if lister.query.HasThreats == nil || *lister.query.HasThreats {
 		t.Fatalf("expected has_threats=false, got %#v", lister.query.HasThreats)
+	}
+	if lister.query.HasFindings == nil || !*lister.query.HasFindings {
+		t.Fatalf("expected has_findings=true, got %#v", lister.query.HasFindings)
 	}
 
 	var payload assets.ListAssetsResponse

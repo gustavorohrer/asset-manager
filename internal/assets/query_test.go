@@ -30,6 +30,9 @@ func TestParseListAssetsQueryDefaults(t *testing.T) {
 	if query.HasThreats != nil {
 		t.Fatalf("expected has_threats nil by default, got %v", *query.HasThreats)
 	}
+	if query.HasFindings != nil {
+		t.Fatalf("expected has_findings nil by default, got %v", *query.HasFindings)
+	}
 }
 
 func TestParseListAssetsQueryValidValues(t *testing.T) {
@@ -45,6 +48,7 @@ func TestParseListAssetsQueryValidValues(t *testing.T) {
 		"sortOrder":           {"asc"},
 		"has_vulnerabilities": {"true"},
 		"has_threats":         {"false"},
+		"has_findings":        {"true"},
 		"unknown":             {"ignored"},
 	}
 
@@ -77,6 +81,9 @@ func TestParseListAssetsQueryValidValues(t *testing.T) {
 	if query.HasThreats == nil || *query.HasThreats {
 		t.Fatalf("expected has_threats=false, got %#v", query.HasThreats)
 	}
+	if query.HasFindings == nil || !*query.HasFindings {
+		t.Fatalf("expected has_findings=true, got %#v", query.HasFindings)
+	}
 }
 
 func TestParseListAssetsQueryInvalidValues(t *testing.T) {
@@ -88,6 +95,7 @@ func TestParseListAssetsQueryInvalidValues(t *testing.T) {
 		"created_from":        {"bad-date"},
 		"has_vulnerabilities": {"truthy"},
 		"has_threats":         {"falsy"},
+		"has_findings":        {"yes"},
 	}
 
 	_, details := ParseListAssetsQuery(values)
@@ -104,7 +112,7 @@ func TestParseListAssetsQueryInvalidValues(t *testing.T) {
 		return false
 	}
 
-	for _, expectedField := range []string{"page", "pageSize", "sortBy", "sortOrder", "created_from", "has_vulnerabilities", "has_threats"} {
+	for _, expectedField := range []string{"page", "pageSize", "sortBy", "sortOrder", "created_from", "has_vulnerabilities", "has_threats", "has_findings"} {
 		if !hasField(expectedField) {
 			t.Fatalf("expected validation error for field %s", expectedField)
 		}
