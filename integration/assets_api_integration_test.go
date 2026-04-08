@@ -64,6 +64,72 @@ func TestAssetsAPIIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("list assets filters has_vulnerabilities true", func(t *testing.T) {
+		status, body := performRequest(t, router, http.MethodGet, "/assets?has_vulnerabilities=true")
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.ListAssetsResponse
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(payload.Data) == 0 {
+			t.Fatal("expected at least one asset with vulnerabilities")
+		}
+		for _, item := range payload.Data {
+			if !item.HasVulnerabilities {
+				t.Fatalf("expected only assets with hasVulnerabilities=true, got asset id=%s", item.ID)
+			}
+		}
+	})
+
+	t.Run("list assets filters has_threats true", func(t *testing.T) {
+		status, body := performRequest(t, router, http.MethodGet, "/assets?page=1&pageSize=100&has_threats=true")
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.ListAssetsResponse
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(payload.Data) == 0 {
+			t.Fatal("expected at least one asset with threats")
+		}
+		for _, item := range payload.Data {
+			if !item.HasThreats {
+				t.Fatalf("expected only assets with hasThreats=true, got asset id=%s", item.ID)
+			}
+		}
+	})
+
+	t.Run("list assets filters no findings keep pagination totals", func(t *testing.T) {
+		status, body := performRequest(t, router, http.MethodGet, "/assets?page=1&pageSize=100&has_vulnerabilities=false&has_threats=false")
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.ListAssetsResponse
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Pagination.Total <= 0 {
+			t.Fatalf("expected filtered total > 0, got %d", payload.Pagination.Total)
+		}
+		if payload.Pagination.Total != len(payload.Data) {
+			t.Fatalf("expected total to match data length for pageSize=100, total=%d data=%d", payload.Pagination.Total, len(payload.Data))
+		}
+		if payload.Pagination.TotalPages != 1 {
+			t.Fatalf("expected totalPages=1 for pageSize=100, got %d", payload.Pagination.TotalPages)
+		}
+		for _, item := range payload.Data {
+			if item.HasVulnerabilities || item.HasThreats {
+				t.Fatalf("expected only assets with no findings, got asset id=%s hasVulnerabilities=%t hasThreats=%t", item.ID, item.HasVulnerabilities, item.HasThreats)
+			}
+		}
+	})
+
 	t.Run("get asset details success", func(t *testing.T) {
 		status, body := performRequest(t, router, http.MethodGet, "/assets/AST-001")
 		if status != http.StatusOK {

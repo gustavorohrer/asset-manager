@@ -86,6 +86,13 @@ func ParseListAssetsQuery(values url.Values) (ListAssetsQuery, []QueryValidation
 		}
 	}
 
+	hasVulnerabilities, hasVulnerabilitiesErr := parseBool(values, "has_vulnerabilities")
+	hasThreats, hasThreatsErr := parseBool(values, "has_threats")
+	details = append(details, hasVulnerabilitiesErr...)
+	details = append(details, hasThreatsErr...)
+	query.HasVulnerabilities = hasVulnerabilities
+	query.HasThreats = hasThreats
+
 	createdFrom, createdFromErr := parseRFC3339(values, "created_from")
 	createdTo, createdToErr := parseRFC3339(values, "created_to")
 	lastScanFrom, lastScanFromErr := parseRFC3339(values, "last_scan_from")
@@ -132,6 +139,26 @@ func parseRFC3339(values url.Values, field string) (*time.Time, []QueryValidatio
 			{
 				Field: field,
 				Issue: "must be a valid RFC3339 datetime",
+				Value: raw,
+			},
+		}
+	}
+
+	return &parsed, nil
+}
+
+func parseBool(values url.Values, field string) (*bool, []QueryValidationDetail) {
+	raw := strings.TrimSpace(values.Get(field))
+	if raw == "" {
+		return nil, nil
+	}
+
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil, []QueryValidationDetail{
+			{
+				Field: field,
+				Issue: "must be a boolean",
 				Value: raw,
 			},
 		}

@@ -587,8 +587,8 @@ WHERE s.componentid = c.id
 }
 
 func buildFilters(query assets.ListAssetsQuery) (string, []any) {
-	conditions := make([]string, 0, 5)
-	args := make([]any, 0, 5)
+	conditions := make([]string, 0, 7)
+	args := make([]any, 0, 7)
 
 	add := func(condition string, value any) {
 		args = append(args, value)
@@ -611,12 +611,52 @@ func buildFilters(query assets.ListAssetsQuery) (string, []any) {
 	if query.LastScanTo != nil {
 		add("a.lastscan IS NOT NULL AND a.lastscan <= %s::date", dateForSQL(*query.LastScanTo))
 	}
+	if query.HasVulnerabilities != nil {
+		add(assetHasLatestVulnerabilitiesCondition("a")+" = %s", *query.HasVulnerabilities)
+	}
+	if query.HasThreats != nil {
+		add(assetHasLatestThreatsCondition("a")+" = %s", *query.HasThreats)
+	}
 
 	if len(conditions) == 0 {
 		return "", args
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND "), args
+}
+
+func assetHasLatestVulnerabilitiesCondition(assetAlias string) string {
+	return `
+EXISTS (
+	SELECT 1
+	FROM component c
+	JOIN (
+		SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+		FROM scan s
+		JOIN component c2 ON c2.id = s.componentid
+		WHERE c2.assetid = ` + assetAlias + `.id
+		ORDER BY s.componentid, s.performedat DESC, s.id DESC
+	) latest_component_scans ON latest_component_scans.componentid = c.id
+	JOIN vulnerability v ON v.scanid = latest_component_scans.scanid
+	WHERE c.assetid = ` + assetAlias + `.id
+)`
+}
+
+func assetHasLatestThreatsCondition(assetAlias string) string {
+	return `
+EXISTS (
+	SELECT 1
+	FROM component c
+	JOIN (
+		SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+		FROM scan s
+		JOIN component c2 ON c2.id = s.componentid
+		WHERE c2.assetid = ` + assetAlias + `.id
+		ORDER BY s.componentid, s.performedat DESC, s.id DESC
+	) latest_component_scans ON latest_component_scans.componentid = c.id
+	JOIN threat t ON t.scanid = latest_component_scans.scanid
+	WHERE c.assetid = ` + assetAlias + `.id
+)`
 }
 
 func buildOrder(alias string, sortBy assets.SortBy, sortOrder assets.SortOrder) string {

@@ -24,20 +24,28 @@ func TestParseListAssetsQueryDefaults(t *testing.T) {
 	if query.SortOrder != SortOrderDesc {
 		t.Fatalf("expected default sortOrder desc, got %s", query.SortOrder)
 	}
+	if query.HasVulnerabilities != nil {
+		t.Fatalf("expected has_vulnerabilities nil by default, got %v", *query.HasVulnerabilities)
+	}
+	if query.HasThreats != nil {
+		t.Fatalf("expected has_threats nil by default, got %v", *query.HasThreats)
+	}
 }
 
 func TestParseListAssetsQueryValidValues(t *testing.T) {
 	values := url.Values{
-		"name":           {"router"},
-		"created_from":   {"2024-01-01T00:00:00Z"},
-		"created_to":     {"2024-12-31T00:00:00Z"},
-		"last_scan_from": {"2024-05-01T00:00:00Z"},
-		"last_scan_to":   {"2024-11-01T00:00:00Z"},
-		"page":           {"2"},
-		"pageSize":       {"50"},
-		"sortBy":         {"name"},
-		"sortOrder":      {"asc"},
-		"unknown":        {"ignored"},
+		"name":                {"router"},
+		"created_from":        {"2024-01-01T00:00:00Z"},
+		"created_to":          {"2024-12-31T00:00:00Z"},
+		"last_scan_from":      {"2024-05-01T00:00:00Z"},
+		"last_scan_to":        {"2024-11-01T00:00:00Z"},
+		"page":                {"2"},
+		"pageSize":            {"50"},
+		"sortBy":              {"name"},
+		"sortOrder":           {"asc"},
+		"has_vulnerabilities": {"true"},
+		"has_threats":         {"false"},
+		"unknown":             {"ignored"},
 	}
 
 	query, details := ParseListAssetsQuery(values)
@@ -63,15 +71,23 @@ func TestParseListAssetsQueryValidValues(t *testing.T) {
 	if query.CreatedFrom == nil || query.CreatedTo == nil || query.LastScanFrom == nil || query.LastScanTo == nil {
 		t.Fatal("expected all date filters to be parsed")
 	}
+	if query.HasVulnerabilities == nil || !*query.HasVulnerabilities {
+		t.Fatalf("expected has_vulnerabilities=true, got %#v", query.HasVulnerabilities)
+	}
+	if query.HasThreats == nil || *query.HasThreats {
+		t.Fatalf("expected has_threats=false, got %#v", query.HasThreats)
+	}
 }
 
 func TestParseListAssetsQueryInvalidValues(t *testing.T) {
 	values := url.Values{
-		"page":         {"0"},
-		"pageSize":     {"101"},
-		"sortBy":       {"invalid"},
-		"sortOrder":    {"up"},
-		"created_from": {"bad-date"},
+		"page":                {"0"},
+		"pageSize":            {"101"},
+		"sortBy":              {"invalid"},
+		"sortOrder":           {"up"},
+		"created_from":        {"bad-date"},
+		"has_vulnerabilities": {"truthy"},
+		"has_threats":         {"falsy"},
 	}
 
 	_, details := ParseListAssetsQuery(values)
@@ -88,7 +104,7 @@ func TestParseListAssetsQueryInvalidValues(t *testing.T) {
 		return false
 	}
 
-	for _, expectedField := range []string{"page", "pageSize", "sortBy", "sortOrder", "created_from"} {
+	for _, expectedField := range []string{"page", "pageSize", "sortBy", "sortOrder", "created_from", "has_vulnerabilities", "has_threats"} {
 		if !hasField(expectedField) {
 			t.Fatalf("expected validation error for field %s", expectedField)
 		}

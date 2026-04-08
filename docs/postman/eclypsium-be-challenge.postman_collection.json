@@ -68,6 +68,18 @@
             {
               "key": "sortOrder",
               "value": "desc"
+            },
+            {
+              "key": "has_vulnerabilities",
+              "value": "true",
+              "description": "Optional: filter assets with vulnerabilities detected in latest component scans.",
+              "disabled": true
+            },
+            {
+              "key": "has_threats",
+              "value": "true",
+              "description": "Optional: filter assets with threats detected in latest component scans.",
+              "disabled": true
             }
           ]
         }

@@ -52,6 +52,9 @@ type ListAssetsQuery struct {
 	LastScanFrom *time.Time
 	LastScanTo   *time.Time
 
+	HasVulnerabilities *bool
+	HasThreats         *bool
+
 	Page      int
 	PageSize  int
 	SortBy    SortBy

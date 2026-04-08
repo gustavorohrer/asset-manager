@@ -66,3 +66,36 @@ func TestBuildOrder(t *testing.T) {
 		t.Fatalf("unexpected order clause. want=%q got=%q", want, got)
 	}
 }
+
+func TestBuildFiltersHasFindingsFlags(t *testing.T) {
+	hasVulnerabilities := true
+	hasThreats := false
+
+	whereClause, args := buildFilters(assets.ListAssetsQuery{
+		HasVulnerabilities: &hasVulnerabilities,
+		HasThreats:         &hasThreats,
+	})
+
+	if !strings.Contains(whereClause, "JOIN vulnerability v ON v.scanid = latest_component_scans.scanid") {
+		t.Fatalf("expected vulnerabilities filter condition, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, "JOIN threat t ON t.scanid = latest_component_scans.scanid") {
+		t.Fatalf("expected threats filter condition, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, ") = $1") {
+		t.Fatalf("expected has_vulnerabilities placeholder, got: %s", whereClause)
+	}
+	if !strings.Contains(whereClause, ") = $2") {
+		t.Fatalf("expected has_threats placeholder, got: %s", whereClause)
+	}
+
+	if len(args) != 2 {
+		t.Fatalf("expected 2 args, got %d", len(args))
+	}
+	if args[0] != true {
+		t.Fatalf("expected first arg true, got %v", args[0])
+	}
+	if args[1] != false {
+		t.Fatalf("expected second arg false, got %v", args[1])
+	}
+}

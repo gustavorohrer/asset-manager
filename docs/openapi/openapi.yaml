@@ -43,7 +43,7 @@ paths:
     get:
       tags: [Assets]
       summary: List assets
-      description: Lists assets with filters, sorting, pagination, and computed vulnerability/threat flags.
+      description: Lists assets with filters, sorting, pagination, and computed vulnerability/threat flags based on findings detected in each component's latest scan.
       operationId: listAssets
       parameters:
         - $ref: "#/components/parameters/name"
@@ -51,6 +51,8 @@ paths:
         - $ref: "#/components/parameters/createdTo"
         - $ref: "#/components/parameters/lastScanFrom"
         - $ref: "#/components/parameters/lastScanTo"
+        - $ref: "#/components/parameters/hasVulnerabilities"
+        - $ref: "#/components/parameters/hasThreats"
         - $ref: "#/components/parameters/page"
         - $ref: "#/components/parameters/pageSize"
         - $ref: "#/components/parameters/sortBy"
@@ -323,6 +325,22 @@ components:
         type: string
         format: date-time
       example: "2024-10-31T23:59:59Z"
+    hasVulnerabilities:
+      name: has_vulnerabilities
+      in: query
+      required: false
+      description: Filters assets by whether their latest component scans contain vulnerabilities.
+      schema:
+        type: boolean
+      example: true
+    hasThreats:
+      name: has_threats
+      in: query
+      required: false
+      description: Filters assets by whether their latest component scans contain threats.
+      schema:
+        type: boolean
+      example: false
     page:
       name: page
       in: query

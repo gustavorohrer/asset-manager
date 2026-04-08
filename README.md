@@ -27,6 +27,7 @@ BASE_URL="https://asset-manager-production-ddd8.up.railway.app"
 
 curl "$BASE_URL/health"
 curl "$BASE_URL/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
+curl "$BASE_URL/assets?has_vulnerabilities=true&has_threats=true"
 curl "$BASE_URL/assets/AST-001"
 curl "$BASE_URL/assets/AST-001/vulnerabilities?page=1&pageSize=3&severity=HIGH"
 curl "$BASE_URL/assets/AST-001/threats?page=1&pageSize=3&riskLevel=HIGH"
@@ -95,6 +96,7 @@ curl "http://localhost:8080/assets?page=1&pageSize=5&sortBy=createdAt&sortOrder=
 ```bash
 curl http://localhost:8080/health
 curl "http://localhost:8080/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc"
+curl "http://localhost:8080/assets?has_vulnerabilities=true&has_threats=true"
 curl "http://localhost:8080/assets/AST-001"
 curl "http://localhost:8080/assets/AST-001/vulnerabilities?page=1&pageSize=5&severity=critical"
 curl "http://localhost:8080/assets/AST-001/threats?page=1&pageSize=5&riskLevel=high"
@@ -149,6 +151,8 @@ Supported query params:
 - `created_to` (RFC3339)
 - `last_scan_from` (RFC3339)
 - `last_scan_to` (RFC3339)
+- `has_vulnerabilities` (boolean; filters by vulnerabilities detected in latest component scans)
+- `has_threats` (boolean; filters by threats detected in latest component scans)
 - `page` (default `1`, max `10000`)
 - `pageSize` (default `20`, max `100`)
 - `sortBy` (`createdAt`, `name`, `lastScan`)
@@ -162,6 +166,10 @@ curl "http://localhost:8080/assets?page=1&pageSize=10&sortBy=name&sortOrder=asc"
 
 ```bash
 curl "http://localhost:8080/assets?name=router&created_from=2024-01-01T00:00:00Z&created_to=2024-12-31T23:59:59Z"
+```
+
+```bash
+curl "http://localhost:8080/assets?has_vulnerabilities=true&has_threats=false"
 ```
 
 Invalid query example:
@@ -522,6 +530,7 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 - Unknown query params are ignored.
 - Date filters are applied against database `DATE` columns using the date portion of the RFC3339 value.
 - `lastScan` null assets are excluded only when `last_scan_from` or `last_scan_to` filters are present.
+- `has_vulnerabilities` and `has_threats` evaluate findings found in the latest scan for each component of the asset.
 - For `sortBy=lastScan`, `NULLS LAST` is applied.
 
 ## Troubleshooting
