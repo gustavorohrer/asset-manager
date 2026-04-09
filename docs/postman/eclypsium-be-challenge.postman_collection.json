@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "6e8d2efe-a8f7-4c85-b52f-6b82d1e84cf4",
     "name": "Eclypsium BE Challenge API",
-    "description": "Collection for quick reviewer validation of deployed API contracts.",
+    "description": "Collection for quick reviewer validation of deployed API contracts. GET /assets keeps the same response contract while using paged aggregation internally for better query efficiency.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -80,6 +80,7 @@
       "request": {
         "method": "GET",
         "header": [],
+        "description": "Lists assets with filters/sorting/pagination. Internal implementation uses filtered_assets -> paged_assets, but API payload and semantics are unchanged.",
         "url": {
           "raw": "{{baseUrl}}/assets?page=1&pageSize=3&sortBy=createdAt&sortOrder=desc",
           "host": [

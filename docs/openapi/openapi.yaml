@@ -12,6 +12,7 @@ info:
     - Unknown query parameters are ignored.
     - Date filters accept RFC3339 datetimes and are compared by date (database columns are DATE).
     - For `sortBy=lastScan`, `NULLS LAST` is applied.
+    - `GET /assets` uses a paged aggregation strategy internally (`filtered_assets` -> `paged_assets`) to reduce query cost without changing response fields or semantics.
 servers:
   - url: https://asset-manager-production-ddd8.up.railway.app
     description: Production (Railway)
@@ -43,7 +44,10 @@ paths:
     get:
       tags: [Assets]
       summary: List assets
-      description: Lists assets with filters, sorting, pagination, computed vulnerability/threat flags, and aggregated vulnerability/threat counters based on findings detected in each component's latest scan.
+      description: |
+        Lists assets with filters, sorting, pagination, computed vulnerability/threat flags, and aggregated vulnerability/threat counters based on findings detected in each component's latest scan.
+
+        Performance note: aggregation is scoped to the current page slice internally (after filtering/sorting), while pagination totals are still computed over the full filtered set. API contract and behavior are unchanged.
       operationId: listAssets
       parameters:
         - $ref: "#/components/parameters/name"

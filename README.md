@@ -179,6 +179,11 @@ Supported query params:
 - `sortBy` (`createdAt`, `name`, `lastScan`)
 - `sortOrder` (`asc`, `desc`)
 
+Implementation note:
+- `GET /assets` keeps `countSQL` over the full filtered set for pagination totals.
+- The data query uses `filtered_assets` -> `paged_assets` (`ORDER BY`, `LIMIT`, `OFFSET`) and computes latest scans plus vulnerability/threat counters only for the page slice.
+- This optimization preserves response schema, filters, sorting, latest-scan-per-component semantics, and anti-overcount behavior for `vulnerabilityCounts` / `threatCounts`.
+
 Examples:
 
 ```bash
@@ -570,6 +575,7 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 - `has_findings=true` returns assets where latest component scans contain vulnerabilities or threats.
 - `vulnerabilityCounts` in `GET /assets` are computed from latest scans per component and include severities `high`, `medium`, and `total`.
 - `threatCounts` in `GET /assets` are computed from latest scans per component and include risk levels `high`, `medium`, `low`, and `total`.
+- `GET /assets` computes `latest_component_scans` and findings counters from `paged_assets` (current page only), reducing query workload without changing API behavior.
 - For `sortBy=lastScan`, `NULLS LAST` is applied.
 
 ## Troubleshooting

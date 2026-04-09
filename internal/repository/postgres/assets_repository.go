@@ -40,7 +40,8 @@ func (r *AssetRepository) ListAssets(ctx context.Context, query assets.ListAsset
 		return nil, 0, fmt.Errorf("count assets: %w", err)
 	}
 
-	orderClause := buildOrder("fa", query.SortBy, query.SortOrder)
+	pageOrderClause := buildOrder("fa", query.SortBy, query.SortOrder)
+	resultOrderClause := buildOrder("pa", query.SortBy, query.SortOrder)
 
 	dataArgs := append([]any{}, args...)
 	dataArgs = append(dataArgs, query.PageSize)
@@ -48,7 +49,13 @@ func (r *AssetRepository) ListAssets(ctx context.Context, query assets.ListAsset
 	dataArgs = append(dataArgs, (query.Page-1)*query.PageSize)
 	offsetPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
 
-	dataSQL := buildListAssetsDataSQL(whereClause, orderClause, limitPlaceholder, offsetPlaceholder)
+	dataSQL := buildListAssetsDataSQL(
+		whereClause,
+		pageOrderClause,
+		resultOrderClause,
+		limitPlaceholder,
+		offsetPlaceholder,
+	)
 
 	rows, err := tx.Query(ctx, dataSQL, dataArgs...)
 	if err != nil {
@@ -92,7 +99,13 @@ func (r *AssetRepository) ListAssets(ctx context.Context, query assets.ListAsset
 	return result, total, nil
 }
 
-func buildListAssetsDataSQL(whereClause, orderClause, limitPlaceholder, offsetPlaceholder string) string {
+func buildListAssetsDataSQL(
+	whereClause,
+	pageOrderClause,
+	resultOrderClause,
+	limitPlaceholder,
+	offsetPlaceholder string,
+) string {
 	return `
 WITH filtered_assets AS (
 	SELECT
@@ -104,11 +117,22 @@ WITH filtered_assets AS (
 	FROM asset a
 	` + whereClause + `
 ),
+paged_assets AS (
+	SELECT
+		fa.id,
+		fa.name,
+		fa.description,
+		fa.createdat,
+		fa.lastscan
+	FROM filtered_assets fa
+	ORDER BY ` + pageOrderClause + `
+	LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder + `
+),
 latest_component_scans AS (
 	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
 	FROM scan s
 	JOIN component c ON c.id = s.componentid
-	JOIN filtered_assets fa ON fa.id = c.assetid
+	JOIN paged_assets pa ON pa.id = c.assetid
 	ORDER BY s.componentid, s.performedat DESC, s.id DESC
 ),
 vulnerability_counts_by_asset AS (
@@ -135,11 +159,11 @@ threat_counts_by_asset AS (
 	GROUP BY c.assetid
 )
 SELECT
-	fa.id,
-	fa.name,
-	fa.description,
-	fa.createdat,
-	fa.lastscan,
+	pa.id,
+	pa.name,
+	pa.description,
+	pa.createdat,
+	pa.lastscan,
 	COALESCE(vca.vulnerabilities_total > 0, FALSE) AS has_vulnerabilities,
 	COALESCE(tca.threats_total > 0, FALSE) AS has_threats,
 	COALESCE(vca.vulnerabilities_high, 0) AS vulnerabilities_high,
@@ -149,11 +173,10 @@ SELECT
 	COALESCE(tca.threats_medium, 0) AS threats_medium,
 	COALESCE(tca.threats_low, 0) AS threats_low,
 	COALESCE(tca.threats_total, 0) AS threats_total
-FROM filtered_assets fa
-LEFT JOIN vulnerability_counts_by_asset vca ON vca.asset_id = fa.id
-LEFT JOIN threat_counts_by_asset tca ON tca.asset_id = fa.id
-ORDER BY ` + orderClause + `
-LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
+FROM paged_assets pa
+LEFT JOIN vulnerability_counts_by_asset vca ON vca.asset_id = pa.id
+LEFT JOIN threat_counts_by_asset tca ON tca.asset_id = pa.id
+ORDER BY ` + resultOrderClause
 }
 
 func (r *AssetRepository) GetAssetSummary(ctx context.Context) (assets.AssetRiskSummary, error) {

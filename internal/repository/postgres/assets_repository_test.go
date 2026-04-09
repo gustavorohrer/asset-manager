@@ -132,10 +132,23 @@ func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
 	sql := buildListAssetsDataSQL(
 		"WHERE a.name ILIKE $1",
 		"fa.createdat DESC, fa.id ASC",
+		"pa.createdat DESC, pa.id ASC",
 		"$2",
 		"$3",
 	)
 
+	if !strings.Contains(sql, "paged_assets AS") {
+		t.Fatalf("expected paged_assets CTE, got: %s", sql)
+	}
+	if !strings.Contains(sql, "FROM filtered_assets fa") {
+		t.Fatalf("expected paged_assets to read filtered_assets, got: %s", sql)
+	}
+	if !strings.Contains(sql, "JOIN paged_assets pa ON pa.id = c.assetid") {
+		t.Fatalf("expected latest_component_scans to be scoped to paged_assets, got: %s", sql)
+	}
+	if !strings.Contains(sql, "LIMIT $2 OFFSET $3") {
+		t.Fatalf("expected LIMIT/OFFSET in paged_assets CTE, got: %s", sql)
+	}
 	if !strings.Contains(sql, "vulnerability_counts_by_asset AS") {
 		t.Fatalf("expected vulnerability_counts_by_asset CTE, got: %s", sql)
 	}
@@ -183,5 +196,11 @@ func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
 	}
 	if !strings.Contains(sql, "COALESCE(tca.threats_total, 0) AS threats_total") {
 		t.Fatalf("expected threats_total projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "FROM paged_assets pa") {
+		t.Fatalf("expected final SELECT from paged_assets, got: %s", sql)
+	}
+	if !strings.Contains(sql, "ORDER BY pa.createdat DESC, pa.id ASC") {
+		t.Fatalf("expected final deterministic order by paged_assets alias, got: %s", sql)
 	}
 }
