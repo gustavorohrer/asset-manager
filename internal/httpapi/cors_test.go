@@ -18,7 +18,7 @@ func TestCORSMiddlewarePreflightFromAllowedOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodOptions, "/assets", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
-	req.Header.Set("Access-Control-Request-Headers", "Authorization")
+	req.Header.Set("Access-Control-Request-Headers", "Authorization,Cache-Control,Pragma,If-None-Match,If-Modified-Since")
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -34,7 +34,13 @@ func TestCORSMiddlewarePreflightFromAllowedOrigin(t *testing.T) {
 		t.Fatalf("unexpected Access-Control-Allow-Methods: %q", allowMethods)
 	}
 	allowHeaders := strings.ToLower(rec.Header().Get("Access-Control-Allow-Headers"))
-	if !strings.Contains(allowHeaders, "accept") || !strings.Contains(allowHeaders, "content-type") || !strings.Contains(allowHeaders, "authorization") {
+	if !strings.Contains(allowHeaders, "accept") ||
+		!strings.Contains(allowHeaders, "content-type") ||
+		!strings.Contains(allowHeaders, "authorization") ||
+		!strings.Contains(allowHeaders, "cache-control") ||
+		!strings.Contains(allowHeaders, "pragma") ||
+		!strings.Contains(allowHeaders, "if-none-match") ||
+		!strings.Contains(allowHeaders, "if-modified-since") {
 		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", rec.Header().Get("Access-Control-Allow-Headers"))
 	}
 }

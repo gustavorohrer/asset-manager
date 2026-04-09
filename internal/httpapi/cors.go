@@ -49,7 +49,7 @@ func NewCORSMiddlewareFromEnv(getenv func(string) string) (gin.HandlerFunc, erro
 	return ginCors.New(ginCors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{http.MethodGet, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-		AllowHeaders:     []string{"Accept", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Accept", "Content-Type", "Authorization", "Cache-Control", "Pragma", "If-None-Match", "If-Modified-Since"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}), nil
