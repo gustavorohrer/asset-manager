@@ -70,6 +70,10 @@ func (r *AssetRepository) ListAssets(ctx context.Context, query assets.ListAsset
 			&item.VulnerabilityCounts.High,
 			&item.VulnerabilityCounts.Medium,
 			&item.VulnerabilityCounts.Total,
+			&item.ThreatCounts.High,
+			&item.ThreatCounts.Medium,
+			&item.ThreatCounts.Low,
+			&item.ThreatCounts.Total,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan asset row: %w", err)
 		}
@@ -118,10 +122,13 @@ vulnerability_counts_by_asset AS (
 	JOIN vulnerability v ON v.scanid = lcs.scanid
 	GROUP BY c.assetid
 ),
-threat_presence_by_asset AS (
+threat_counts_by_asset AS (
 	SELECT
 		c.assetid AS asset_id,
-		TRUE AS has_threats
+		COUNT(*) FILTER (WHERE t.risklevel = 'HIGH') AS threats_high,
+		COUNT(*) FILTER (WHERE t.risklevel = 'MEDIUM') AS threats_medium,
+		COUNT(*) FILTER (WHERE t.risklevel = 'LOW') AS threats_low,
+		COUNT(*) AS threats_total
 	FROM component c
 	JOIN latest_component_scans lcs ON lcs.componentid = c.id
 	JOIN threat t ON t.scanid = lcs.scanid
@@ -134,13 +141,17 @@ SELECT
 	fa.createdat,
 	fa.lastscan,
 	COALESCE(vca.vulnerabilities_total > 0, FALSE) AS has_vulnerabilities,
-	COALESCE(tpa.has_threats, FALSE) AS has_threats,
+	COALESCE(tca.threats_total > 0, FALSE) AS has_threats,
 	COALESCE(vca.vulnerabilities_high, 0) AS vulnerabilities_high,
 	COALESCE(vca.vulnerabilities_medium, 0) AS vulnerabilities_medium,
-	COALESCE(vca.vulnerabilities_total, 0) AS vulnerabilities_total
+	COALESCE(vca.vulnerabilities_total, 0) AS vulnerabilities_total,
+	COALESCE(tca.threats_high, 0) AS threats_high,
+	COALESCE(tca.threats_medium, 0) AS threats_medium,
+	COALESCE(tca.threats_low, 0) AS threats_low,
+	COALESCE(tca.threats_total, 0) AS threats_total
 FROM filtered_assets fa
 LEFT JOIN vulnerability_counts_by_asset vca ON vca.asset_id = fa.id
-LEFT JOIN threat_presence_by_asset tpa ON tpa.asset_id = fa.id
+LEFT JOIN threat_counts_by_asset tca ON tca.asset_id = fa.id
 ORDER BY ` + orderClause + `
 LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 }

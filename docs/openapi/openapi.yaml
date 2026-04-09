@@ -43,7 +43,7 @@ paths:
     get:
       tags: [Assets]
       summary: List assets
-      description: Lists assets with filters, sorting, pagination, and computed vulnerability/threat flags based on findings detected in each component's latest scan.
+      description: Lists assets with filters, sorting, pagination, computed vulnerability/threat flags, and aggregated vulnerability/threat counters based on findings detected in each component's latest scan.
       operationId: listAssets
       parameters:
         - $ref: "#/components/parameters/name"
@@ -80,6 +80,11 @@ paths:
                           high: 2
                           medium: 0
                           total: 6
+                        threatCounts:
+                          high: 1
+                          medium: 2
+                          low: 0
+                          total: 3
                     pagination:
                       page: 1
                       pageSize: 20
@@ -531,6 +536,23 @@ components:
         total:
           type: integer
 
+    ThreatCounts:
+      type: object
+      required: [high, medium, low, total]
+      properties:
+        high:
+          type: integer
+          minimum: 0
+        medium:
+          type: integer
+          minimum: 0
+        low:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+
     Pagination:
       type: object
       required: [page, pageSize, total, totalPages]
@@ -562,6 +584,7 @@ components:
         - hasVulnerabilities
         - hasThreats
         - vulnerabilityCounts
+        - threatCounts
       properties:
         id:
           type: string
@@ -582,6 +605,8 @@ components:
           type: boolean
         vulnerabilityCounts:
           $ref: "#/components/schemas/VulnerabilityCounts"
+        threatCounts:
+          $ref: "#/components/schemas/ThreatCounts"
 
     ListAssetsResponse:
       type: object

@@ -71,6 +71,7 @@ type AssetSummary struct {
 	HasVulnerabilities  bool                `json:"hasVulnerabilities"`
 	HasThreats          bool                `json:"hasThreats"`
 	VulnerabilityCounts VulnerabilityCounts `json:"vulnerabilityCounts"`
+	ThreatCounts        ThreatCounts        `json:"threatCounts"`
 }
 
 type Pagination struct {
@@ -88,6 +89,13 @@ type ListAssetsResponse struct {
 type VulnerabilityCounts struct {
 	High   int `json:"high"`
 	Medium int `json:"medium"`
+	Total  int `json:"total"`
+}
+
+type ThreatCounts struct {
+	High   int `json:"high"`
+	Medium int `json:"medium"`
+	Low    int `json:"low"`
 	Total  int `json:"total"`
 }
 

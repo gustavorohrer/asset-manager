@@ -87,6 +87,12 @@ func TestAssetsAPIIntegration(t *testing.T) {
 			if item.HasVulnerabilities != (item.VulnerabilityCounts.Total > 0) {
 				t.Fatalf("expected hasVulnerabilities to match counts for asset id=%s hasVulnerabilities=%t total=%d", item.ID, item.HasVulnerabilities, item.VulnerabilityCounts.Total)
 			}
+			if item.ThreatCounts.High < 0 || item.ThreatCounts.Medium < 0 || item.ThreatCounts.Low < 0 || item.ThreatCounts.Total < 0 {
+				t.Fatalf("expected non-negative threat counts, got asset id=%s counts=%+v", item.ID, item.ThreatCounts)
+			}
+			if item.HasThreats != (item.ThreatCounts.Total > 0) {
+				t.Fatalf("expected hasThreats to match counts for asset id=%s hasThreats=%t total=%d", item.ID, item.HasThreats, item.ThreatCounts.Total)
+			}
 		}
 	})
 
@@ -203,6 +209,12 @@ VALUES ($1, $2, $3, $4, $5)
 		if !payload.Data[0].HasThreats {
 			t.Fatalf("expected hasThreats=true for asset %s", payload.Data[0].ID)
 		}
+		if payload.Data[0].ThreatCounts.High != 1 ||
+			payload.Data[0].ThreatCounts.Medium != 0 ||
+			payload.Data[0].ThreatCounts.Low != 0 ||
+			payload.Data[0].ThreatCounts.Total != 1 {
+			t.Fatalf("expected threatCounts={high:1,medium:0,low:0,total:1} for threat-only asset, got %+v", payload.Data[0].ThreatCounts)
+		}
 		if payload.Data[0].VulnerabilityCounts.Total != 0 ||
 			payload.Data[0].VulnerabilityCounts.High != 0 ||
 			payload.Data[0].VulnerabilityCounts.Medium != 0 {
@@ -210,7 +222,7 @@ VALUES ($1, $2, $3, $4, $5)
 		}
 	})
 
-	t.Run("list assets vulnerability counts are not multiplied by threats", func(t *testing.T) {
+	t.Run("list assets vulnerability and threat counts are not multiplied across findings", func(t *testing.T) {
 		suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 		assetID := "AST-COUNT-" + suffix
 		assetName := "CountCheck-" + suffix
@@ -293,6 +305,12 @@ VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
 		if item.VulnerabilityCounts.High != 1 || item.VulnerabilityCounts.Medium != 1 || item.VulnerabilityCounts.Total != 2 {
 			t.Fatalf("unexpected vulnerabilityCounts (possible overcount): %+v", item.VulnerabilityCounts)
 		}
+		if item.ThreatCounts.High != 1 || item.ThreatCounts.Medium != 1 || item.ThreatCounts.Low != 0 || item.ThreatCounts.Total != 2 {
+			t.Fatalf("unexpected threatCounts (possible overcount): %+v", item.ThreatCounts)
+		}
+		if item.HasThreats != (item.ThreatCounts.Total > 0) {
+			t.Fatalf("expected hasThreats to match threatCounts.total, got hasThreats=%t total=%d", item.HasThreats, item.ThreatCounts.Total)
+		}
 	})
 
 	t.Run("list assets filters no findings keep pagination totals", func(t *testing.T) {
@@ -340,6 +358,9 @@ VALUES ($1, $2, $3, $4, $5)
 		}
 		if item.HasVulnerabilities || item.HasThreats {
 			t.Fatalf("expected asset without findings, got hasVulnerabilities=%t hasThreats=%t", item.HasVulnerabilities, item.HasThreats)
+		}
+		if item.ThreatCounts.Total != 0 || item.ThreatCounts.High != 0 || item.ThreatCounts.Medium != 0 || item.ThreatCounts.Low != 0 {
+			t.Fatalf("expected zero threatCounts for no-findings asset, got %+v", item.ThreatCounts)
 		}
 	})
 

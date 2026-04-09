@@ -139,8 +139,8 @@ func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
 	if !strings.Contains(sql, "vulnerability_counts_by_asset AS") {
 		t.Fatalf("expected vulnerability_counts_by_asset CTE, got: %s", sql)
 	}
-	if !strings.Contains(sql, "threat_presence_by_asset AS") {
-		t.Fatalf("expected threat_presence_by_asset CTE, got: %s", sql)
+	if !strings.Contains(sql, "threat_counts_by_asset AS") {
+		t.Fatalf("expected threat_counts_by_asset CTE, got: %s", sql)
 	}
 	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE v.severity = 'HIGH')") {
 		t.Fatalf("expected HIGH vulnerability counter, got: %s", sql)
@@ -148,8 +148,20 @@ func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
 	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE v.severity = 'MEDIUM')") {
 		t.Fatalf("expected MEDIUM vulnerability counter, got: %s", sql)
 	}
+	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE t.risklevel = 'HIGH')") {
+		t.Fatalf("expected HIGH threat counter, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE t.risklevel = 'MEDIUM')") {
+		t.Fatalf("expected MEDIUM threat counter, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE t.risklevel = 'LOW')") {
+		t.Fatalf("expected LOW threat counter, got: %s", sql)
+	}
 	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_total > 0, FALSE) AS has_vulnerabilities") {
 		t.Fatalf("expected has_vulnerabilities derived from vulnerability counts, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(tca.threats_total > 0, FALSE) AS has_threats") {
+		t.Fatalf("expected has_threats derived from threat counts, got: %s", sql)
 	}
 	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_high, 0) AS vulnerabilities_high") {
 		t.Fatalf("expected vulnerabilities_high projection, got: %s", sql)
@@ -159,5 +171,17 @@ func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
 	}
 	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_total, 0) AS vulnerabilities_total") {
 		t.Fatalf("expected vulnerabilities_total projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(tca.threats_high, 0) AS threats_high") {
+		t.Fatalf("expected threats_high projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(tca.threats_medium, 0) AS threats_medium") {
+		t.Fatalf("expected threats_medium projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(tca.threats_low, 0) AS threats_low") {
+		t.Fatalf("expected threats_low projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(tca.threats_total, 0) AS threats_total") {
+		t.Fatalf("expected threats_total projection, got: %s", sql)
 	}
 }

@@ -117,6 +117,12 @@ func TestListAssetsSuccess(t *testing.T) {
 						Medium: 1,
 						Total:  4,
 					},
+					ThreatCounts: assets.ThreatCounts{
+						High:   1,
+						Medium: 2,
+						Low:    3,
+						Total:  6,
+					},
 				},
 			},
 			Pagination: assets.Pagination{
@@ -171,6 +177,12 @@ func TestListAssetsSuccess(t *testing.T) {
 		payload.Data[0].VulnerabilityCounts.Medium != 1 ||
 		payload.Data[0].VulnerabilityCounts.Total != 4 {
 		t.Fatalf("unexpected vulnerabilityCounts payload: %+v", payload.Data[0].VulnerabilityCounts)
+	}
+	if payload.Data[0].ThreatCounts.High != 1 ||
+		payload.Data[0].ThreatCounts.Medium != 2 ||
+		payload.Data[0].ThreatCounts.Low != 3 ||
+		payload.Data[0].ThreatCounts.Total != 6 {
+		t.Fatalf("unexpected threatCounts payload: %+v", payload.Data[0].ThreatCounts)
 	}
 }
 

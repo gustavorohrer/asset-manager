@@ -144,6 +144,11 @@
               "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"high\");",
               "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"medium\");",
               "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"total\");",
+              "    pm.expect(body.data[0]).to.have.property(\"threatCounts\");",
+              "    pm.expect(body.data[0].threatCounts).to.have.property(\"high\");",
+              "    pm.expect(body.data[0].threatCounts).to.have.property(\"medium\");",
+              "    pm.expect(body.data[0].threatCounts).to.have.property(\"low\");",
+              "    pm.expect(body.data[0].threatCounts).to.have.property(\"total\");",
               "  }",
               "});"
             ],
