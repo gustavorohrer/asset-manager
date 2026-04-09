@@ -139,6 +139,12 @@
               "  pm.expect(body).to.have.property(\"data\");",
               "  pm.expect(body).to.have.property(\"pagination\");",
               "  pm.expect(body.data).to.be.an(\"array\");",
+              "  if (body.data.length > 0) {",
+              "    pm.expect(body.data[0]).to.have.property(\"vulnerabilityCounts\");",
+              "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"high\");",
+              "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"medium\");",
+              "    pm.expect(body.data[0].vulnerabilityCounts).to.have.property(\"total\");",
+              "  }",
               "});"
             ],
             "type": "text/javascript"

@@ -80,6 +80,14 @@ func TestAssetsAPIIntegration(t *testing.T) {
 		if len(payload.Data) == 0 {
 			t.Fatal("expected non-empty data")
 		}
+		for _, item := range payload.Data {
+			if item.VulnerabilityCounts.High < 0 || item.VulnerabilityCounts.Medium < 0 || item.VulnerabilityCounts.Total < 0 {
+				t.Fatalf("expected non-negative vulnerability counts, got asset id=%s counts=%+v", item.ID, item.VulnerabilityCounts)
+			}
+			if item.HasVulnerabilities != (item.VulnerabilityCounts.Total > 0) {
+				t.Fatalf("expected hasVulnerabilities to match counts for asset id=%s hasVulnerabilities=%t total=%d", item.ID, item.HasVulnerabilities, item.VulnerabilityCounts.Total)
+			}
+		}
 	})
 
 	t.Run("list assets filters has_vulnerabilities true", func(t *testing.T) {
@@ -194,6 +202,96 @@ VALUES ($1, $2, $3, $4, $5)
 		}
 		if !payload.Data[0].HasThreats {
 			t.Fatalf("expected hasThreats=true for asset %s", payload.Data[0].ID)
+		}
+		if payload.Data[0].VulnerabilityCounts.Total != 0 ||
+			payload.Data[0].VulnerabilityCounts.High != 0 ||
+			payload.Data[0].VulnerabilityCounts.Medium != 0 {
+			t.Fatalf("expected zero vulnerabilityCounts for threat-only asset, got %+v", payload.Data[0].VulnerabilityCounts)
+		}
+	})
+
+	t.Run("list assets vulnerability counts are not multiplied by threats", func(t *testing.T) {
+		suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+		assetID := "AST-COUNT-" + suffix
+		assetName := "CountCheck-" + suffix
+		componentID := "CMP-COUNT-" + suffix
+		scanID := "SCN-COUNT-" + suffix
+		vulnHighID := "VUL-COUNT-H-" + suffix
+		vulnMediumID := "VUL-COUNT-M-" + suffix
+		threatAID := "THR-COUNT-A-" + suffix
+		threatBID := "THR-COUNT-B-" + suffix
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO asset (id, name, description, createdat, lastscan)
+VALUES ($1, $2, $3, $4, $5)
+`, assetID, assetName, "integration test asset for vulnerability counts", "2024-08-01", "2024-11-15"); err != nil {
+			t.Fatalf("insert asset: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO component (id, name, version, vendor, type, createdat, lastscan, assetid)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, componentID, "Count Component", "1.0.0", "Integration Vendor", "Firmware", "2024-08-01", "2024-11-15", assetID); err != nil {
+			t.Fatalf("insert component: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO scan (id, performedat, scannername, componentid)
+VALUES ($1, $2, $3, $4)
+`, scanID, "2024-11-15", "integration-count-scanner", componentID); err != nil {
+			t.Fatalf("insert scan: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO vulnerability (id, description, severity, scanid)
+VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
+`, vulnHighID, "integration high vuln", "HIGH", scanID, vulnMediumID, "integration medium vuln", "MEDIUM", scanID); err != nil {
+			t.Fatalf("insert vulnerabilities: %v", err)
+		}
+
+		if _, err := pool.Exec(ctx, `
+INSERT INTO threat (id, description, risklevel, type, scanid)
+VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
+`, threatAID, "integration threat A", "HIGH", "Integration Threat", scanID, threatBID, "integration threat B", "MEDIUM", "Integration Threat", scanID); err != nil {
+			t.Fatalf("insert threats: %v", err)
+		}
+
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cleanupCancel()
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM threat WHERE id IN ($1, $2)`, threatAID, threatBID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM vulnerability WHERE id IN ($1, $2)`, vulnHighID, vulnMediumID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM scan WHERE id = $1`, scanID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM component WHERE id = $1`, componentID)
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM asset WHERE id = $1`, assetID)
+		})
+
+		requestPath := "/assets?page=1&pageSize=20&sortBy=name&sortOrder=asc&name=" + url.QueryEscape(assetName)
+		status, body := performRequest(t, router, http.MethodGet, requestPath)
+		if status != http.StatusOK {
+			t.Fatalf("expected status 200, got %d, body=%s", status, string(body))
+		}
+
+		var payload assets.ListAssetsResponse
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Pagination.Total != 1 || len(payload.Data) != 1 {
+			t.Fatalf("unexpected filtered payload: pagination=%+v data=%d", payload.Pagination, len(payload.Data))
+		}
+
+		item := payload.Data[0]
+		if item.ID != assetID {
+			t.Fatalf("expected asset id=%s, got %s", assetID, item.ID)
+		}
+		if !item.HasVulnerabilities || !item.HasThreats {
+			t.Fatalf("expected both findings flags true, got hasVulnerabilities=%t hasThreats=%t", item.HasVulnerabilities, item.HasThreats)
+		}
+		if item.VulnerabilityCounts.High != 1 || item.VulnerabilityCounts.Medium != 1 || item.VulnerabilityCounts.Total != 2 {
+			t.Fatalf("unexpected vulnerabilityCounts (possible overcount): %+v", item.VulnerabilityCounts)
 		}
 	})
 

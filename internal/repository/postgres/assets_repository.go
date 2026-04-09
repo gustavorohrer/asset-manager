@@ -48,40 +48,7 @@ func (r *AssetRepository) ListAssets(ctx context.Context, query assets.ListAsset
 	dataArgs = append(dataArgs, (query.Page-1)*query.PageSize)
 	offsetPlaceholder := fmt.Sprintf("$%d", len(dataArgs))
 
-	dataSQL := `
-WITH filtered_assets AS (
-	SELECT
-		a.id,
-		a.name,
-		a.description,
-		a.createdat,
-		a.lastscan
-	FROM asset a
-	` + whereClause + `
-),
-latest_component_scans AS (
-	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
-	FROM scan s
-	JOIN component c ON c.id = s.componentid
-	JOIN filtered_assets fa ON fa.id = c.assetid
-	ORDER BY s.componentid, s.performedat DESC, s.id DESC
-)
-SELECT
-	fa.id,
-	fa.name,
-	fa.description,
-	fa.createdat,
-	fa.lastscan,
-	COALESCE(BOOL_OR(v.id IS NOT NULL), FALSE) AS has_vulnerabilities,
-	COALESCE(BOOL_OR(t.id IS NOT NULL), FALSE) AS has_threats
-FROM filtered_assets fa
-LEFT JOIN component c ON c.assetid = fa.id
-LEFT JOIN latest_component_scans lcs ON lcs.componentid = c.id
-LEFT JOIN vulnerability v ON v.scanid = lcs.scanid
-LEFT JOIN threat t ON t.scanid = lcs.scanid
-GROUP BY fa.id, fa.name, fa.description, fa.createdat, fa.lastscan
-ORDER BY ` + orderClause + `
-LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
+	dataSQL := buildListAssetsDataSQL(whereClause, orderClause, limitPlaceholder, offsetPlaceholder)
 
 	rows, err := tx.Query(ctx, dataSQL, dataArgs...)
 	if err != nil {
@@ -100,6 +67,9 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 			&item.LastScan,
 			&item.HasVulnerabilities,
 			&item.HasThreats,
+			&item.VulnerabilityCounts.High,
+			&item.VulnerabilityCounts.Medium,
+			&item.VulnerabilityCounts.Total,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan asset row: %w", err)
 		}
@@ -116,6 +86,63 @@ LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 	}
 
 	return result, total, nil
+}
+
+func buildListAssetsDataSQL(whereClause, orderClause, limitPlaceholder, offsetPlaceholder string) string {
+	return `
+WITH filtered_assets AS (
+	SELECT
+		a.id,
+		a.name,
+		a.description,
+		a.createdat,
+		a.lastscan
+	FROM asset a
+	` + whereClause + `
+),
+latest_component_scans AS (
+	SELECT DISTINCT ON (s.componentid) s.componentid, s.id AS scanid
+	FROM scan s
+	JOIN component c ON c.id = s.componentid
+	JOIN filtered_assets fa ON fa.id = c.assetid
+	ORDER BY s.componentid, s.performedat DESC, s.id DESC
+),
+vulnerability_counts_by_asset AS (
+	SELECT
+		c.assetid AS asset_id,
+		COUNT(*) FILTER (WHERE v.severity = 'HIGH') AS vulnerabilities_high,
+		COUNT(*) FILTER (WHERE v.severity = 'MEDIUM') AS vulnerabilities_medium,
+		COUNT(*) AS vulnerabilities_total
+	FROM component c
+	JOIN latest_component_scans lcs ON lcs.componentid = c.id
+	JOIN vulnerability v ON v.scanid = lcs.scanid
+	GROUP BY c.assetid
+),
+threat_presence_by_asset AS (
+	SELECT
+		c.assetid AS asset_id,
+		TRUE AS has_threats
+	FROM component c
+	JOIN latest_component_scans lcs ON lcs.componentid = c.id
+	JOIN threat t ON t.scanid = lcs.scanid
+	GROUP BY c.assetid
+)
+SELECT
+	fa.id,
+	fa.name,
+	fa.description,
+	fa.createdat,
+	fa.lastscan,
+	COALESCE(vca.vulnerabilities_total > 0, FALSE) AS has_vulnerabilities,
+	COALESCE(tpa.has_threats, FALSE) AS has_threats,
+	COALESCE(vca.vulnerabilities_high, 0) AS vulnerabilities_high,
+	COALESCE(vca.vulnerabilities_medium, 0) AS vulnerabilities_medium,
+	COALESCE(vca.vulnerabilities_total, 0) AS vulnerabilities_total
+FROM filtered_assets fa
+LEFT JOIN vulnerability_counts_by_asset vca ON vca.asset_id = fa.id
+LEFT JOIN threat_presence_by_asset tpa ON tpa.asset_id = fa.id
+ORDER BY ` + orderClause + `
+LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder
 }
 
 func (r *AssetRepository) GetAssetSummary(ctx context.Context) (assets.AssetRiskSummary, error) {

@@ -127,3 +127,37 @@ func TestBuildFiltersHasFindingsCombinedFlag(t *testing.T) {
 		t.Fatalf("expected arg true, got %v", args[0])
 	}
 }
+
+func TestBuildListAssetsDataSQLUsesSeparatedAggregations(t *testing.T) {
+	sql := buildListAssetsDataSQL(
+		"WHERE a.name ILIKE $1",
+		"fa.createdat DESC, fa.id ASC",
+		"$2",
+		"$3",
+	)
+
+	if !strings.Contains(sql, "vulnerability_counts_by_asset AS") {
+		t.Fatalf("expected vulnerability_counts_by_asset CTE, got: %s", sql)
+	}
+	if !strings.Contains(sql, "threat_presence_by_asset AS") {
+		t.Fatalf("expected threat_presence_by_asset CTE, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE v.severity = 'HIGH')") {
+		t.Fatalf("expected HIGH vulnerability counter, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COUNT(*) FILTER (WHERE v.severity = 'MEDIUM')") {
+		t.Fatalf("expected MEDIUM vulnerability counter, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_total > 0, FALSE) AS has_vulnerabilities") {
+		t.Fatalf("expected has_vulnerabilities derived from vulnerability counts, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_high, 0) AS vulnerabilities_high") {
+		t.Fatalf("expected vulnerabilities_high projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_medium, 0) AS vulnerabilities_medium") {
+		t.Fatalf("expected vulnerabilities_medium projection, got: %s", sql)
+	}
+	if !strings.Contains(sql, "COALESCE(vca.vulnerabilities_total, 0) AS vulnerabilities_total") {
+		t.Fatalf("expected vulnerabilities_total projection, got: %s", sql)
+	}
+}

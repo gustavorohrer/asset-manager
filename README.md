@@ -50,7 +50,7 @@ curl -i "$BASE_URL/assets?page=0"  # 400 INVALID_QUERY_PARAM
 Current implemented feature set:
 - `GET /health`
 - `GET /assets/summary` (global counters for total assets and assets with vulnerabilities/threats in latest component scans)
-- `GET /assets` (simple asset listing with filters, sorting, pagination, and computed threat/vulnerability flags)
+- `GET /assets` (asset listing with filters, sorting, pagination, computed threat/vulnerability flags, and vulnerability counters `high`/`medium`/`total`)
 - `GET /assets/:id` (asset details with ordered components and computed threat/vulnerability flags)
 - `GET /assets/:id/vulnerabilities` (latest scan vulnerabilities by asset, with pagination and optional severity filter)
 - `GET /assets/:id/threats` (latest scan threats by asset, with pagination and optional riskLevel filter)
@@ -233,7 +233,12 @@ Listing success envelope:
       "createdAt": "2024-01-15T00:00:00Z",
       "lastScan": "2024-10-08T00:00:00Z",
       "hasVulnerabilities": true,
-      "hasThreats": true
+      "hasThreats": true,
+      "vulnerabilityCounts": {
+        "high": 2,
+        "medium": 0,
+        "total": 6
+      }
     }
   ],
   "pagination": {
@@ -557,6 +562,7 @@ If `DATABASE_URL` is not set, integration tests are skipped.
 - `lastScan` null assets are excluded only when `last_scan_from` or `last_scan_to` filters are present.
 - `has_vulnerabilities` and `has_threats` evaluate findings found in the latest scan for each component of the asset.
 - `has_findings=true` returns assets where latest component scans contain vulnerabilities or threats.
+- `vulnerabilityCounts` in `GET /assets` are computed from latest scans per component and include severities `high`, `medium`, and `total`.
 - For `sortBy=lastScan`, `NULLS LAST` is applied.
 
 ## Troubleshooting

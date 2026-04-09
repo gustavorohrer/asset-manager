@@ -76,6 +76,10 @@ paths:
                         lastScan: "2024-10-08T00:00:00Z"
                         hasVulnerabilities: true
                         hasThreats: true
+                        vulnerabilityCounts:
+                          high: 2
+                          medium: 0
+                          total: 6
                     pagination:
                       page: 1
                       pageSize: 20
@@ -516,6 +520,17 @@ components:
         withThreats:
           type: integer
 
+    VulnerabilityCounts:
+      type: object
+      required: [high, medium, total]
+      properties:
+        high:
+          type: integer
+        medium:
+          type: integer
+        total:
+          type: integer
+
     Pagination:
       type: object
       required: [page, pageSize, total, totalPages]
@@ -546,6 +561,7 @@ components:
         - createdAt
         - hasVulnerabilities
         - hasThreats
+        - vulnerabilityCounts
       properties:
         id:
           type: string
@@ -564,6 +580,8 @@ components:
           type: boolean
         hasThreats:
           type: boolean
+        vulnerabilityCounts:
+          $ref: "#/components/schemas/VulnerabilityCounts"
 
     ListAssetsResponse:
       type: object
